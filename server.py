@@ -21,6 +21,8 @@ MEDIA_DIR = "media"
 SAMPLE_RATE = 48000  # Many embedded/ALSA devices prefer 48k
 CHANNELS = 2         
 
+import base64
+
 # Global state
 mixer_queue = queue.Queue()
 file_samples = None
@@ -28,6 +30,7 @@ file_index = 0
 file_lock = threading.Lock()
 test_tone_active = False # Set to True for debugging audio output
 test_tone_frames = 0
+active_uploads = {} # Store {filename: [chunks]}
 
 def audio_callback(outdata, frames, time, status):
     global file_samples, file_index, test_tone_active, test_tone_frames
@@ -136,20 +139,28 @@ async def handle_client(websocket):
                             logger.info(f"Deleted file: {filename}")
                             files = [f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))]
                             await websocket.send(json.dumps({"type": "list", "files": files}))
-                    elif cmd == "upload":
+                    elif cmd == "upload_start":
                         filename = data.get("filename")
-                        content_b64 = data.get("data")
-                        import base64
-                        try:
-                            file_content = base64.b64decode(content_b64)
+                        active_uploads[filename] = []
+                        logger.info(f"Started chunked upload for: {filename}")
+                    
+                    elif cmd == "upload_chunk":
+                        filename = data.get("filename")
+                        chunk_b64 = data.get("data")
+                        if filename in active_uploads:
+                            active_uploads[filename].append(base64.b64decode(chunk_b64))
+                    
+                    elif cmd == "upload_end":
+                        filename = data.get("filename")
+                        if filename in active_uploads:
+                            file_content = b"".join(active_uploads[filename])
                             file_path = os.path.join(MEDIA_DIR, filename)
                             with open(file_path, "wb") as f:
                                 f.write(file_content)
-                            logger.info(f"Uploaded file: {filename}")
+                            del active_uploads[filename]
+                            logger.info(f"Completed upload: {filename}")
                             files = [f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))]
                             await websocket.send(json.dumps({"type": "list", "files": files}))
-                        except Exception as e:
-                            logger.error(f"Upload failed: {e}")
                 
                 except json.JSONDecodeError:
                     logger.error("Received invalid JSON")

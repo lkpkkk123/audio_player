@@ -254,17 +254,42 @@
             const file = input.files[0];
             if (!file) return;
 
+            const CHUNK_SIZE = 256 * 1024; // 256KB chunks
             const reader = new FileReader();
+            let offset = 0;
+
+            ws.send(JSON.stringify({
+                type: 'upload_start',
+                filename: file.name
+            }));
+
             reader.onload = function(e) {
                 const base64Data = e.target.result.split(',')[1];
                 ws.send(JSON.stringify({
-                    type: 'upload',
+                    type: 'upload_chunk',
                     filename: file.name,
                     data: base64Data
                 }));
-                input.value = ''; // Reset input
+
+                offset += CHUNK_SIZE;
+                if (offset < file.size) {
+                    readNextChunk();
+                } else {
+                    ws.send(JSON.stringify({
+                        type: 'upload_end',
+                        filename: file.name
+                    }));
+                    input.value = ''; // Reset input
+                    console.log('Upload complete');
+                }
             };
-            reader.readAsDataURL(file);
+
+            function readNextChunk() {
+                const slice = file.slice(offset, offset + CHUNK_SIZE);
+                reader.readAsDataURL(slice);
+            }
+
+            readNextChunk();
         }
 
         function stopAll() {
