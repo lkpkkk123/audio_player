@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embedded Audio Intercom</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        h1 { font-size: 1.5rem; margin-bottom: 1.5rem; font-weight: 700; }
+        .status {
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .status.connected { color: #10b981; }
+        .status.disconnected { color: #f43f5e; }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 1rem;
+            border: none;
+            font-size: 1.125rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-danger { background: #f43f5e; color: white; }
+        .btn-talk {
+            height: 120px;
+            width: 120px;
+            border-radius: 50%;
+            margin: 2rem auto;
+            position: relative;
+            user-select: none;
+        }
+        .btn-talk.active {
+            background: #ef4444;
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.5);
+            transform: scale(1.05);
+        }
+        .btn-talk span { pointer-events: none; }
+        
+        .file-list {
+            margin-top: 2rem;
+            text-align: left;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+        .file-item button {
+            background: var(--primary);
+            border: none;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Audio Player & Intercom</h1>
+        
+        <div id="status" class="status disconnected">Disconnected</div>
+
+        <button id="talkBtn" class="btn btn-primary btn-talk">
+            <span>START<br>TALK</span>
+        </button>
+
+        <div class="file-list">
+            <h3>Media Files</h3>
+            <div id="filesContainer">
+                <p style="opacity: 0.5">Refresh to see files...</p>
+            </div>
+            <button class="btn" style="background: transparent; color: #94a3b8; border: 1px solid #334155;" onclick="refreshFiles()">Refresh List</button>
+            <button class="btn btn-danger" onclick="stopAll()">Stop All Playback</button>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let audioContext;
+        let processor;
+        let source;
+        let isTalking = false;
+
+        const statusEl = document.getElementById('status');
+        const talkBtn = document.getElementById('talkBtn');
+        const filesContainer = document.getElementById('filesContainer');
+
+        function connect() {
+            const host = window.location.hostname || 'localhost';
+            ws = new WebSocket(`ws://${host}:8765`);
+            
+            ws.onopen = () => {
+                statusEl.textContent = 'Connected to Board';
+                statusEl.className = 'status connected';
+                refreshFiles();
+            };
+
+            ws.onclose = () => {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'status disconnected';
+                setTimeout(connect, 2000);
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'list') {
+                    renderFileList(data.files);
+                }
+            };
+        }
+
+        async function startIntercom() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: 44100
+                });
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                source = audioContext.createMediaStreamSource(stream);
+                
+                // Buffer size 2048 is decent balance
+                processor = audioContext.createScriptProcessor(2048, 1, 1);
+                
+                processor.onaudioprocess = (e) => {
+                    if (!isTalking || ws.readyState !== WebSocket.OPEN) return;
+                    
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    // Send raw float32 data
+                    ws.send(inputData.buffer);
+                };
+
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                
+                isTalking = true;
+                talkBtn.classList.add('active');
+                talkBtn.querySelector('span').innerHTML = 'TALKING...';
+            } catch (err) {
+                console.error('Error accessing microphone:', err);
+                alert('Microphone access denied or error: ' + err.message);
+            }
+        }
+
+        function stopIntercom() {
+            isTalking = false;
+            talkBtn.classList.remove('active');
+            talkBtn.querySelector('span').innerHTML = 'START<br>TALK';
+            
+            if (processor) {
+                processor.disconnect();
+            }
+            if (source) {
+                source.disconnect();
+            }
+        }
+
+        talkBtn.addEventListener('mousedown', startIntercom);
+        talkBtn.addEventListener('mouseup', stopIntercom);
+        talkBtn.addEventListener('mouseleave', stopIntercom);
+        
+        // Mobile touch support
+        talkBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startIntercom(); });
+        talkBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopIntercom(); });
+
+        function playFile(filename) {
+            ws.send(JSON.stringify({ type: 'play', file: filename }));
+        }
+
+        function stopAll() {
+            ws.send(JSON.stringify({ type: 'stop' }));
+        }
+
+        function refreshFiles() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'list' }));
+            }
+        }
+
+        function renderFileList(files) {
+            filesContainer.innerHTML = '';
+            if (files.length === 0) {
+                filesContainer.innerHTML = '<p style="opacity: 0.5">No files in media/ directory</p>';
+                return;
+            }
+            files.forEach(file => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.innerHTML = `
+                    <span>${file}</span>
+                    <button onclick="playFile('${file}')">Play</button>
+                `;
+                filesContainer.appendChild(div);
+            });
+        }
+
+        connect();
+    </script>
+</body>
+</html>
