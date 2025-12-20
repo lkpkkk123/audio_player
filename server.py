@@ -128,6 +128,28 @@ async def handle_client(websocket):
                     elif cmd == "list":
                         files = [f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))]
                         await websocket.send(json.dumps({"type": "list", "files": files}))
+                    elif cmd == "delete":
+                        filename = data.get("file")
+                        file_path = os.path.join(MEDIA_DIR, filename)
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            logger.info(f"Deleted file: {filename}")
+                            files = [f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))]
+                            await websocket.send(json.dumps({"type": "list", "files": files}))
+                    elif cmd == "upload":
+                        filename = data.get("filename")
+                        content_b64 = data.get("data")
+                        import base64
+                        try:
+                            file_content = base64.b64decode(content_b64)
+                            file_path = os.path.join(MEDIA_DIR, filename)
+                            with open(file_path, "wb") as f:
+                                f.write(file_content)
+                            logger.info(f"Uploaded file: {filename}")
+                            files = [f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))]
+                            await websocket.send(json.dumps({"type": "list", "files": files}))
+                        except Exception as e:
+                            logger.error(f"Upload failed: {e}")
                 
                 except json.JSONDecodeError:
                     logger.error("Received invalid JSON")

@@ -98,6 +98,30 @@
             border-radius: 0.4rem;
             cursor: pointer;
         }
+        .file-item .actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .btn-sm-danger {
+            background: #f43f5e !important;
+        }
+        .btn-sm-stop {
+            background: #64748b !important;
+        }
+        .upload-section {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            border: 2px dashed #475569;
+            border-radius: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .upload-section:hover {
+            border-color: var(--primary);
+            background: rgba(79, 70, 229, 0.05);
+        }
+        .upload-section input { display: none; }
     </style>
 </head>
 <body>
@@ -111,12 +135,17 @@
             <span>START<br>TALK</span>
         </button>
 
+        <div class="upload-section" onclick="document.getElementById('fileInput').click()">
+            <p style="margin: 0; color: #94a3b8;">Click to Upload Audio</p>
+            <input type="file" id="fileInput" accept="audio/*" onchange="uploadFile(this)">
+        </div>
+
         <div class="file-list">
             <h3>Media Files</h3>
             <div id="filesContainer">
                 <p style="opacity: 0.5">Refresh to see files...</p>
             </div>
-            <button class="btn" style="background: transparent; color: #94a3b8; border: 1px solid #334155;" onclick="refreshFiles()">Refresh List</button>
+            <button class="btn" style="background: transparent; color: #94a3b8; border: 1px solid #334155; margin-top: 1rem;" onclick="refreshFiles()">Refresh List</button>
             <button class="btn btn-danger" onclick="stopAll()">Stop All Playback</button>
         </div>
     </div>
@@ -215,6 +244,29 @@
             ws.send(JSON.stringify({ type: 'play', file: filename }));
         }
 
+        function deleteFile(filename) {
+            if (confirm(`Are you sure you want to delete ${filename}?`)) {
+                ws.send(JSON.stringify({ type: 'delete', file: filename }));
+            }
+        }
+
+        function uploadFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Data = e.target.result.split(',')[1];
+                ws.send(JSON.stringify({
+                    type: 'upload',
+                    filename: file.name,
+                    data: base64Data
+                }));
+                input.value = ''; // Reset input
+            };
+            reader.readAsDataURL(file);
+        }
+
         function stopAll() {
             ws.send(JSON.stringify({ type: 'stop' }));
         }
@@ -235,8 +287,12 @@
                 const div = document.createElement('div');
                 div.className = 'file-item';
                 div.innerHTML = `
-                    <span>${file}</span>
-                    <button onclick="playFile('${file}')">Play</button>
+                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px;">${file}</span>
+                    <div class="actions">
+                        <button onclick="playFile('${file}')">Play</button>
+                        <button class="btn-sm-stop" onclick="stopAll()">Stop</button>
+                        <button class="btn-sm-danger" onclick="deleteFile('${file}')">Del</button>
+                    </div>
                 `;
                 filesContainer.appendChild(div);
             });
