@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="Recorder.js"></script>
     <title>Embedded Audio Intercom</title>
     <style>
         :root {
@@ -152,15 +153,42 @@
 
     <script>
         let ws;
-        let audioContext;
-        let processor;
-        let source;
+        let recorder;
         let isTalking = false;
 
         const statusEl = document.getElementById('status');
         const talkBtn = document.getElementById('talkBtn');
         const filesContainer = document.getElementById('filesContainer');
 
+        async function startRecord() {
+            if (!recorder) {
+                recorder = new Recorder({
+                    // 以下是默认配置
+                    sampleBits: 16,
+                    sampleRate:  48000, // 浏览器默认的输入采样率,
+                    numChannels: 1,
+                });
+
+                recorder.onPCM = function(ldata,rdata) {
+                    // 部分低版本浏览器不支持innerText，改用innerHTML
+                    //oTime.innerHTML = duration.toFixed(5);
+                    console.log("on pcm: ",ldata?.length,rdata?.length);
+                    ws.send(ldata?.buffer);
+                }
+                // recorder.onprocess = function(duration) {
+                //     console.log("on process: ",duration);
+                // }
+            }
+            recorder.start().then(function() {
+                console.log('开始录音');
+            });
+            // 开始绘制canvas
+            //drawRecord();
+        }
+        function endRecord (e) {
+            recorder && recorder.stop();
+            console.log('结束录音');
+        }
         function connect() {
             const host = window.location.hostname || 'localhost';
             ws = new WebSocket(`ws://${host}:8765`);
@@ -186,37 +214,19 @@
         }
 
         async function startIntercom() {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: 44100
-                });
+            if (!recorder) {
+                await startRecord();
             }
 
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                source = audioContext.createMediaStreamSource(stream);
-                
-                // Buffer size 2048 is decent balance
-                processor = audioContext.createScriptProcessor(2048, 1, 1);
-                
-                processor.onaudioprocess = (e) => {
-                    if (!isTalking || ws.readyState !== WebSocket.OPEN) return;
-                    
-                    const inputData = e.inputBuffer.getChannelData(0);
-                    // Send raw float32 data
-                    ws.send(inputData.buffer);
-                };
-
-                source.connect(processor);
-                processor.connect(audioContext.destination);
-                
+            if(isTalking) {
+                stopIntercom();
+            }
+            else{
                 isTalking = true;
                 talkBtn.classList.add('active');
                 talkBtn.querySelector('span').innerHTML = 'TALKING...';
-            } catch (err) {
-                console.error('Error accessing microphone:', err);
-                alert('Microphone access denied or error: ' + err.message);
             }
+
         }
 
         function stopIntercom() {
@@ -224,17 +234,15 @@
             talkBtn.classList.remove('active');
             talkBtn.querySelector('span').innerHTML = 'START<br>TALK';
             
-            if (processor) {
-                processor.disconnect();
+            if (recorder) {
+                endRecord();
             }
-            if (source) {
-                source.disconnect();
-            }
+
         }
 
-        talkBtn.addEventListener('mousedown', startIntercom);
-        talkBtn.addEventListener('mouseup', stopIntercom);
-        talkBtn.addEventListener('mouseleave', stopIntercom);
+        talkBtn.addEventListener('click', startIntercom);
+        //talkBtn.addEventListener('click', stopIntercom);
+        //talkBtn.addEventListener('mouseleave', stopIntercom);
         
         // Mobile touch support
         talkBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startIntercom(); });
