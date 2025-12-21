@@ -25,6 +25,7 @@ import base64
 
 # Global state
 mixer_queue = queue.Queue()
+residual_audio_buffer = np.array([], dtype=np.float32)
 file_samples = None
 file_index = 0
 file_lock = threading.Lock()
@@ -32,8 +33,16 @@ test_tone_active = False # Set to True for debugging audio output
 test_tone_frames = 0
 active_uploads = {} # Store {filename: [chunks]}
 
+# Debug counters
+stream_packet_count = 0
+stream_sample_count = 0
+last_debug_time = 0
+callback_count = 0
+
 def audio_callback(outdata, frames, time, status):
-    global file_samples, file_index, test_tone_active, test_tone_frames
+    global file_samples, file_index, test_tone_active, test_tone_frames, callback_count, residual_audio_buffer
+    
+    callback_count += 1
     
     if status:
         if not status.output_underflow:
@@ -56,16 +65,49 @@ def audio_callback(outdata, frames, time, status):
             logger.info("Startup test tone finished")
 
     # 1. Add real-time streaming data
+    samples_needed = frames
+    stream_output = np.zeros(frames, dtype=np.float32)
+    samples_filled = 0
+    
+    # 1a. Fill from residual buffer first
+    if len(residual_audio_buffer) > 0:
+        take = min(len(residual_audio_buffer), samples_needed)
+        stream_output[:take] = residual_audio_buffer[:take]
+        residual_audio_buffer = residual_audio_buffer[take:]
+        samples_filled += take
+        samples_needed -= take
+
+    # 1b. Fill from queue if still needed
     try:
-        while not mixer_queue.empty(): # Drain if there's multiple chunks
+        while samples_needed > 0 and not mixer_queue.empty():
             data = mixer_queue.get_nowait()
             data = data.flatten()
-            chunk_len = min(len(data), frames)
-            # Add to both channels
-            combined_data[:chunk_len, 0] += data[:chunk_len]
-            combined_data[:chunk_len, 1] += data[:chunk_len]
+            
+            # Remove NaNs
+            if np.any(np.isnan(data)):
+                data = np.nan_to_num(data)
+                
+            take = min(len(data), samples_needed)
+            stream_output[samples_filled:samples_filled+take] = data[:take]
+            
+            # If chunk was bigger than needed, save the rest
+            if len(data) > take:
+                residual_audio_buffer = np.concatenate((residual_audio_buffer, data[take:]))
+            
+            samples_filled += take
+            samples_needed -= take
+            
+            # Debug: Log peak volume periodically
+            if callback_count % 100 == 1:
+                abs_max = np.max(np.abs(data))
+                if abs_max > 0.001:
+                    logger.info(f"[MIXER] Signal peak: {abs_max:.4f}, Buffer usage: {samples_filled}/{frames}, Residual: {len(residual_audio_buffer)}")
     except queue.Empty:
         pass
+    
+    # Mono to Stereo
+    combined_data[:, 0] += stream_output
+    combined_data[:, 1] += stream_output
 
     # 2. Add file playback data
     with file_lock:
