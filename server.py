@@ -108,6 +108,30 @@ async def play_audio_file(file_path):
     except Exception as e:
         logger.exception(f"Error loading file: {e}")
 
+async def play_pcm_file(file_path):
+    """Load a raw PCM s16le mono file (48k) into the global mixer."""
+    global file_samples, file_index
+    try:
+        if not os.path.exists(file_path):
+            logger.error(f"File not found: {file_path}")
+            return
+
+        logger.info(f"Loading raw PCM: {file_path}")
+        # Read raw binary data
+        with open(file_path, "rb") as f:
+            raw_data = f.read()
+        
+        # Convert s16le (Signed 16-bit Little Endian) to float32
+        samples = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32) / 32768.0
+        
+        with file_lock:
+            file_samples = samples
+            file_index = 0
+            
+        logger.info(f"PCM Playback triggered: {len(samples)} samples @ {SAMPLE_RATE}Hz")
+    except Exception as e:
+        logger.exception(f"Error loading PCM file: {e}")
+
 async def handle_client(websocket):
     logger.info(f"Client connected: {websocket.remote_address}")
     
@@ -120,7 +144,14 @@ async def handle_client(websocket):
                     
                     if cmd == "play":
                         filename = data.get("file")
-                        await play_audio_file(os.path.join(MEDIA_DIR, filename))
+                        # Auto-detect .pcm extension
+                        if filename.lower().endswith('.pcm'):
+                            await play_pcm_file(os.path.join(MEDIA_DIR, filename))
+                        else:
+                            await play_audio_file(os.path.join(MEDIA_DIR, filename))
+                    elif cmd == "play_pcm":
+                        filename = data.get("file")
+                        await play_pcm_file(os.path.join(MEDIA_DIR, filename))
                     elif cmd == "stop":
                         with file_lock:
                             global file_samples
@@ -169,6 +200,7 @@ async def handle_client(websocket):
                 audio_data = np.frombuffer(message, dtype=np.float32)
                 if audio_data.size > 0:
                     # Put raw mono data into queue
+                    logger.info(f"Received {audio_data.size} samples")
                     mixer_queue.put(audio_data)
 
     except websockets.exceptions.ConnectionClosed:
