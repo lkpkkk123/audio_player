@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AudioServer")
 
 # Configuration
-PORT = 8080
+PORT = 8888
 MEDIA_DIR = "media"
 SAMPLE_RATE = 48000  # Many embedded/ALSA devices prefer 48k
 CHANNELS = 2         
@@ -175,7 +175,8 @@ async def play_pcm_file(file_path):
         logger.exception(f"Error loading PCM file: {e}")
 
 async def handle_client(websocket):
-    logger.info(f"Client connected: {websocket.remote_address}")
+    logger.info(f"Handshake started with: {websocket.remote_address}")
+    # websocket.remote_address is available after handshake
     
     try:
         async for message in websocket:
