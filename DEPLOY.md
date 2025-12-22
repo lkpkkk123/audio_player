@@ -64,3 +64,8 @@ apt-get install python3-cffi
 pip3 install --upgrade websockets （apt装ws有问题，需要用这个命令升级后正常）
 pip3 install sounddevice
 pip3 install sounddevice
+
+## 5. 浏览器麦克风音频采集设置
+- 浏览器由于安全机制，默认之允许localhost访问麦克风，如果要访问ip地址，需要设置
+- 在浏览器里输入 chrome://flags/#unsafely-treat-insecure-origin-as-secure
+- 将选项改为已启用，添加音频服务板卡的ip地址如：http://192.168.8.237，然后重启浏览器
