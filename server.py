@@ -34,9 +34,6 @@ test_tone_frames = 0
 active_uploads = {} # Store {filename: [chunks]}
 
 # Debug counters
-stream_packet_count = 0
-stream_sample_count = 0
-last_debug_time = 0
 callback_count = 0
 
 def audio_callback(outdata, frames, time, status):
@@ -243,7 +240,7 @@ async def handle_client(websocket):
                 audio_data = np.frombuffer(message, dtype=np.float32)
                 if audio_data.size > 0:
                     # Put raw mono data into queue
-                    logger.info(f"Received {audio_data.size} samples")
+                    #logger.info(f"Received {audio_data.size} samples")
                     mixer_queue.put(audio_data)
 
     except websockets.exceptions.ConnectionClosed:
