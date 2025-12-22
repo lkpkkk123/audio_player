@@ -250,6 +250,7 @@ async def main():
     if not os.path.exists(MEDIA_DIR):
         os.makedirs(MEDIA_DIR)
     
+    os.system("amixer -c0 cset name='OUT1 Switch' 1")# 执行这个命令后，音频输出口才能有输出
     # --- Device Selection Logic ---
     devices = sd.query_devices()
     logger.info("--- Audio Devices List ---")

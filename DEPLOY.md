@@ -50,3 +50,17 @@ audioop-lts; python_version >= '3.13'
 *   **Web Microphone Access**: Modern browsers require **HTTPS** to access the microphone unless you are using `localhost`. If you access the board via IP, the "Talk" button may not work unless you:
     *   Deploy an SSL certificate.
     *   Or, in Chrome, go to `chrome://flags/#unsafely-treat-insecure-origin-as-secure` and add your board's IP.
+
+## 4. 安装命令
+apt-get install -y     python3-pip     python3-venv     libportaudio2     libasound2-dev     ffmpeg
+apt install rsync
+apt-get install python3-numpy
+apt-get install python3-pydub
+apt-get install python3-sounddevice
+apt-get install python3-websockets (可选，估计要用pip安装，用这个装上ws有问题)
+apt-get install libportaudio2
+apt-get install python3-cffi
+
+pip3 install --upgrade websockets （apt装ws有问题，需要用这个命令升级后正常）
+pip3 install sounddevice
+pip3 install sounddevice

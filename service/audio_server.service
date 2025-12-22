@@ -1,0 +1,15 @@
+[Unit]
+Description=audio_server daemon
+ConditionPathExists=/opt/audio_player/server.py
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/audio_player
+ExecStart=/usr/bin/python3 /opt/audio_player/server.py
+TimeoutSec=10
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
