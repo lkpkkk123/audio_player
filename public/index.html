@@ -128,26 +128,26 @@
 <body>
 
     <div class="container">
-        <h1>Audio Player & Intercom</h1>
+        <h1>音频播放器 & 对讲</h1>
         
         <div id="status" class="status disconnected">Disconnected</div>
 
         <button id="talkBtn" class="btn btn-primary btn-talk">
-            <span>START<br>TALK</span>
+            <span>开始<br>对讲</span>
         </button>
 
         <div class="upload-section" onclick="document.getElementById('fileInput').click()">
-            <p style="margin: 0; color: #94a3b8;">Click to Upload Audio</p>
+            <p style="margin: 0; color: #94a3b8;">点击上传音频</p>
             <input type="file" id="fileInput" accept="audio/*" onchange="uploadFile(this)">
         </div>
 
         <div class="file-list">
-            <h3>Media Files</h3>
+            <h3>音频列表</h3>
             <div id="filesContainer">
-                <p style="opacity: 0.5">Refresh to see files...</p>
+                <p style="opacity: 0.5">刷新列表...</p>
             </div>
-            <button class="btn" style="background: transparent; color: #94a3b8; border: 1px solid #334155; margin-top: 1rem;" onclick="refreshFiles()">Refresh List</button>
-            <button class="btn btn-danger" onclick="stopAll()">Stop All Playback</button>
+            <button class="btn" style="background: transparent; color: #94a3b8; border: 1px solid #334155; margin-top: 1rem;" onclick="refreshFiles()">刷新列表</button>
+            <button class="btn btn-danger" onclick="stopAll()">停止所有播放</button>
         </div>
     </div>
 
@@ -198,13 +198,13 @@
             ws = new WebSocket(`ws://${host}:8888`);
             
             ws.onopen = () => {
-                statusEl.textContent = 'Connected to Board';
+                statusEl.textContent = '已连接';
                 statusEl.className = 'status connected';
                 refreshFiles();
             };
 
             ws.onclose = () => {
-                statusEl.textContent = 'Disconnected';
+                statusEl.textContent = '已断开';
                 statusEl.className = 'status disconnected';
                 setTimeout(connect, 2000);
             };
@@ -228,7 +228,7 @@
             else{
                 isTalking = true;
                 talkBtn.classList.add('active');
-                talkBtn.querySelector('span').innerHTML = 'TALKING...';
+                talkBtn.querySelector('span').innerHTML = '对讲中...';
             }
 
         }
@@ -236,7 +236,7 @@
         function stopIntercom() {
             isTalking = false;
             talkBtn.classList.remove('active');
-            talkBtn.querySelector('span').innerHTML = 'START<br>TALK';
+            talkBtn.querySelector('span').innerHTML = '开始<br>对讲';
             
             if (recorder) {
                 endRecord();
@@ -326,9 +326,9 @@
                 div.innerHTML = `
                     <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px;">${file}</span>
                     <div class="actions">
-                        <button onclick="playFile('${file}')">Play</button>
-                        <button class="btn-sm-stop" onclick="stopAll()">Stop</button>
-                        <button class="btn-sm-danger" onclick="deleteFile('${file}')">Del</button>
+                        <button onclick="playFile('${file}')">播放</button>
+                        <button class="btn-sm-stop" onclick="stopAll()">停止</button>
+                        <button class="btn-sm-danger" onclick="deleteFile('${file}')">删除</button>
                     </div>
                 `;
                 filesContainer.appendChild(div);

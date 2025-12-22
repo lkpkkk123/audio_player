@@ -283,8 +283,8 @@ async def main():
 
         socketserver.TCPServer.allow_reuse_address = True
         try:
-            with socketserver.TCPServer(("", 8000), Handler) as httpd:
-                logger.info(f"Serving HTTP on port 8000 (dir: {public_dir})")
+            with socketserver.TCPServer(("", 80), Handler) as httpd:
+                logger.info(f"Serving HTTP on port 80 (dir: {public_dir})")
                 httpd.serve_forever()
         except Exception as e:
             logger.error(f"HTTP Server error: {e}")
