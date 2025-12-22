@@ -1,7 +1,6 @@
-audioop-lts==0.2.2
-cffi==2.0.0
-numpy==2.3.5
-pycparser==2.23
-pydub==0.25.1
-sounddevice==0.5.3
-websockets==15.0.1
+numpy
+pydub
+sounddevice
+websockets
+# Required for Python 3.13+ because audioop was removed from stdlib
+audioop-lts; python_version >= '3.13'

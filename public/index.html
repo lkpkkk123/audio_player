@@ -195,7 +195,7 @@
         }
         function connect() {
             const host = window.location.hostname || 'localhost';
-            ws = new WebSocket(`ws://${host}:8765`);
+            ws = new WebSocket(`ws://${host}:8080`);
             
             ws.onopen = () => {
                 statusEl.textContent = 'Connected to Board';

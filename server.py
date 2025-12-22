@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AudioServer")
 
 # Configuration
-PORT = 8765
+PORT = 8080
 MEDIA_DIR = "media"
 SAMPLE_RATE = 48000  # Many embedded/ALSA devices prefer 48k
 CHANNELS = 2         
@@ -284,9 +284,12 @@ async def main():
                 super().__init__(*args, directory=public_dir, **kwargs)
 
         socketserver.TCPServer.allow_reuse_address = True
-        with socketserver.TCPServer(("", 8000), Handler) as httpd:
-            logger.info("Serving HTTP on port 8000")
-            httpd.serve_forever()
+        try:
+            with socketserver.TCPServer(("", 8000), Handler) as httpd:
+                logger.info(f"Serving HTTP on port 8000 (dir: {public_dir})")
+                httpd.serve_forever()
+        except Exception as e:
+            logger.error(f"HTTP Server error: {e}")
 
     http_thread = threading.Thread(target=run_http, daemon=True)
     http_thread.start()
@@ -304,8 +307,12 @@ async def main():
     logger.info(f"Global audio stream started on device {target_device}")
 
     logger.info(f"Starting WebSocket server on ws://0.0.0.0:{PORT}")
-    async with websockets.serve(handle_client, "0.0.0.0", PORT):
-        await asyncio.Future()
+    try:
+        async with websockets.serve(handle_client, "0.0.0.0", PORT):
+            logger.info("WebSocket server is running and waiting for connections")
+            await asyncio.Future()
+    except Exception as e:
+        logger.error(f"Failed to start WebSocket server: {e}")
 
 if __name__ == "__main__":
     try:

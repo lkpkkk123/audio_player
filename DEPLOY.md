@@ -33,13 +33,14 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### requirements.txt contents:
+### requirements.txt contents (Updated):
 ```text
-audioop-lts==0.2.2  # Critical for Python 3.13+
-numpy==2.3.5
-pydub==0.25.1
-sounddevice==0.5.3
-websockets==15.0.1
+numpy
+pydub
+sounddevice
+websockets
+# Only installs if Python is 3.13 or newer
+audioop-lts; python_version >= '3.13'
 ```
 
 ## 3. Important Notes for Embedded Environments
