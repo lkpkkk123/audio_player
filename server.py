@@ -126,6 +126,7 @@ def audio_callback(outdata, frames, time, status):
             else:
                 file_samples = None
                 file_index = 0
+                logger.info("File playback reached the end. Triggering 'ended' event.")
                 event_queue.put({"type": "ended"})
     
     # Apply Volume
@@ -184,6 +185,32 @@ async def play_pcm_file(file_path):
     except Exception as e:
         logger.exception(f"Error loading PCM file: {e}")
 
+async def get_file_list():
+    """Helper to generate a list of file dictionaries with metadata."""
+    files_data = []
+    if not os.path.exists(MEDIA_DIR):
+        return []
+    valid_files = sorted([f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))])
+    for f in valid_files:
+        path = os.path.join(MEDIA_DIR, f)
+        stat = os.stat(path)
+        size = stat.st_size
+        mtime = stat.st_mtime
+        duration = 0.0
+        if f.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
+            try:
+                info = mediainfo(path)
+                duration = float(info.get('duration', 0.0))
+            except:
+                pass
+        files_data.append({
+            "name": f,
+            "size": size,
+            "mtime": mtime,
+            "duration": duration
+        })
+    return files_data
+
 async def handle_client(websocket):
     global VOLUME, PAUSED
     logger.info(f"Handshake started with: {websocket.remote_address}")
@@ -215,26 +242,7 @@ async def handle_client(websocket):
                             mixer_queue.get()
                         logger.info("Playback stopped")
                     elif cmd == "list":
-                        files_data = []
-                        valid_files = [f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))]
-                        for f in valid_files:
-                            path = os.path.join(MEDIA_DIR, f)
-                            stat = os.stat(path)
-                            size = stat.st_size
-                            mtime = stat.st_mtime
-                            duration = 0.0
-                            if f.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
-                                try:
-                                    info = mediainfo(path)
-                                    duration = float(info.get('duration', 0.0))
-                                except:
-                                    pass
-                            files_data.append({
-                                "name": f,
-                                "size": size,
-                                "mtime": mtime,
-                                "duration": duration
-                            })
+                        files_data = await get_file_list()
                         await websocket.send(json.dumps({"type": "list", "files": files_data}))
                     elif cmd == "set_volume":
                         vol = float(data.get("volume", 1.0))
@@ -248,9 +256,9 @@ async def handle_client(websocket):
                         file_path = os.path.join(MEDIA_DIR, filename)
                         if os.path.exists(file_path):
                             os.remove(file_path)
-                            logger.info(f"Deleted file: {filename}")
-                            files = [f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))]
-                            await websocket.send(json.dumps({"type": "list", "files": files}))
+                            logger.info(f"Deleted file: {filename}, broadcasting new list")
+                            files_data = await get_file_list()
+                            event_queue.put({"type": "list", "files": files_data})
                     elif cmd == "upload_start":
                         filename = data.get("filename")
                         active_uploads[filename] = []
@@ -270,9 +278,9 @@ async def handle_client(websocket):
                             with open(file_path, "wb") as f:
                                 f.write(file_content)
                             del active_uploads[filename]
-                            logger.info(f"Completed upload: {filename}")
-                            files = [f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))]
-                            await websocket.send(json.dumps({"type": "list", "files": files}))
+                            logger.info(f"Completed upload: {filename}, broadcasting new list")
+                            files_data = await get_file_list()
+                            event_queue.put({"type": "list", "files": files_data})
                 
                 except json.JSONDecodeError:
                     logger.error("Received invalid JSON")

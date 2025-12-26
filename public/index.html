@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html class="dark" lang="zh-CN">
+<html class="dark overflow-hidden h-full h-[100dvh]" lang="zh-CN">
 <head>
     <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
     <title>远程播放器</title>
-    <link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="fonts/splinesans.css" rel="stylesheet"/>
+    <link href="fonts/notosans.css" rel="stylesheet"/>
+    <link href="fonts/symbols.css" rel="stylesheet"/>
     <!-- Use Tailwind via CDN for simplicity as in code.html -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script>
@@ -53,6 +53,7 @@
         }
         .range-slider {
             -webkit-appearance: none;
+            appearance: none;
             width: 100%;
             height: 4px;
             background: #283339;
@@ -100,48 +101,73 @@
         .animate-spin-slow {
             animation: spin 3s linear infinite;
         }
+        
+        /* New premium effects */
+        .btn-premium {
+            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .btn-premium:active {
+            transform: scale(0.92);
+        }
+        .btn-premium:hover {
+            transform: translateY(-1px);
+        }
+
+        .file-row.active {
+            background: linear-gradient(90deg, rgba(53, 158, 255, 0.1) 0%, rgba(53, 158, 255, 0.05) 100%);
+            color: white;
+            box-shadow: inset 0 0 20px rgba(53, 158, 255, 0.05);
+        }
     </style>
     <script src="Recorder.js"></script> 
 </head>
-<body class="bg-[#0b1219] text-white font-body h-screen flex justify-center items-center p-0 md:p-10 antialiased selection:bg-primary selection:text-white">
+<body class="bg-[#0b1219] text-white font-body min-h-[100dvh] max-h-[100dvh] overflow-hidden flex justify-center items-center p-0 md:p-10 antialiased selection:bg-primary selection:text-white touch-manipulation">
 
-    <div class="w-full max-w-6xl h-full md:h-[90vh] flex flex-col bg-background-dark shadow-2xl md:rounded-[10px] relative overflow-hidden">
+    <div class="w-full md:w-[60%] h-full h-[100dvh] md:h-[90vh] flex flex-col bg-background-dark shadow-2xl md:rounded-[10px] relative overflow-hidden">
 
 
     <!-- Header (Fixed Top) -->
-    <header class="flex-none flex flex-col sm:flex-row items-center justify-between gap-4 px-4 sm:px-6 py-4 bg-[#1e293b]/30 backdrop-blur-md z-20">
-        <div class="flex items-center gap-3 w-full sm:w-auto">
-            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center shadow-lg shadow-blue-900/20 flex-none">
-                <span class="material-symbols-outlined text-white text-lg sm:text-xl">music_note</span>
+    <header class="flex-none flex flex-col md:flex-row md:items-center justify-between gap-2 px-4 sm:px-6 py-2 md:py-4 bg-[#1e293b]/30 backdrop-blur-md z-20 border-b border-white/5">
+        <!-- Title & Status Row (Mobile: Full Width, Desktop: Left Side) -->
+        <div class="flex items-center justify-between w-full md:w-auto gap-3">
+            <div class="flex items-center gap-2 overflow-hidden">
+                <div class="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center shadow-lg shadow-blue-900/40 flex-none relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <span class="material-symbols-outlined text-white text-lg sm:text-2xl relative">music_note</span>
+                </div>
+                <h1 class="text-lg sm:text-2xl font-display font-bold tracking-tight text-white whitespace-nowrap truncate">音频播放器&对讲</h1>
             </div>
-            <h1 class="text-xl sm:text-2xl font-display font-bold tracking-tight text-white whitespace-nowrap">远程播放器</h1>
-            <span id="connection-status" class="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-text-secondary font-medium uppercase tracking-wider flex-none">连接中...</span>
+            <span id="connection-status" class="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-text-secondary font-bold uppercase tracking-widest border border-white/5 flex-none">连接中...</span>
         </div>
-        <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
-            <!-- Upload Button -->
-            <button onclick="document.getElementById('file-upload').click()" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-dark border border-border-dark hover:bg-white/5 transition-colors text-sm font-medium text-text-secondary hover:text-white">
-                <span class="material-symbols-outlined text-lg">library_music</span>
-                <span>上传</span>
-            </button>
-            <input type="file" id="file-upload" class="hidden" accept=".mp3,.wav,.ogg,.flac,.pcm" onchange="handleFileUpload(this)">
+        
+        <!-- Actions Row (Mobile: Below Title, Desktop: Right Side) -->
+        <div class="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+            <div class="flex items-center gap-2 flex-1 md:flex-none">
+                <!-- Upload Button -->
+                <button onclick="document.getElementById('file-upload').click()" class="btn-premium flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface-dark border border-white/5 hover:bg-white/5 text-xs font-semibold text-text-secondary hover:text-white">
+                    <span class="material-symbols-outlined text-lg">library_music</span>
+                    <span class="whitespace-nowrap">上传</span>
+                </button>
+                <input type="file" id="file-upload" class="hidden" accept=".mp3,.wav,.ogg,.flac,.pcm" onchange="handleFileUpload(this)">
 
-            <!-- Intercom Button -->
-            <button id="btn-intercom" onmousedown="startIntercom()" onmouseup="stopIntercom()" onmouseleave="stopIntercom()" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition-colors text-sm font-medium text-white shadow-lg shadow-indigo-900/20 active:scale-95 select-none">
-                <span class="material-symbols-outlined text-lg">mic</span>
-                <span>按下对讲</span>
-            </button>
+                <!-- Intercom Button -->
+                <button id="btn-intercom" onmousedown="startIntercom()" onmouseup="stopIntercom()" onmouseleave="stopIntercom()" class="btn-premium flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20 text-xs font-bold active:bg-indigo-700 select-none">
+                    <span class="material-symbols-outlined text-lg">mic</span>
+                    <span class="whitespace-nowrap uppercase tracking-wider">对讲</span>
+                </button>
+            </div>
 
-            <button class="w-10 h-10 rounded-full hover:bg-surface-dark flex items-center justify-center transition-colors text-text-secondary hover:text-white">
-                <span class="material-symbols-outlined">settings</span>
+            <button class="btn-premium w-10 h-10 rounded-xl hover:bg-surface-dark border border-transparent hover:border-white/5 flex items-center justify-center text-text-secondary hover:text-white flex-none">
+                <span class="material-symbols-outlined text-xl">settings</span>
             </button>
         </div>
     </header>
 
     <!-- Main Content (Scrollable List) -->
-    <main class="flex-1 min-h-0 flex flex-col w-full p-2 sm:p-4 md:p-6 pb-2">
+    <main class="flex-1 flex flex-col w-full min-h-0 p-0 sm:p-4 md:p-6 relative">
         
         <!-- List Container -->
-        <div class="flex-1 bg-surface-dark/40 rounded-sm flex flex-col overflow-hidden relative">
+        <div class="flex-1 flex flex-col bg-surface-dark/40 rounded-none sm:rounded-[6px] overflow-hidden relative">
             <!-- Toolbar -->
             <div class="flex-none p-4 flex items-center justify-between gap-4 bg-white/[0.02]">
                 <div class="flex items-center gap-2">
@@ -174,51 +200,44 @@
     </main>
 
     <!-- Bottom Player Bar (Fixed Footer) -->
-    <footer class="flex-none bg-[#1e293b]/40 backdrop-blur-lg p-4 md:px-8 md:py-5 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] z-30">
-        <div class="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8">
+    <footer class="flex-none bg-[#1e293b]/60 backdrop-blur-xl p-3 sm:p-5 md:px-8 shadow-[0_-10px_40px_rgba(0,0,0,0.6)] z-30 border-t border-white/5">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-5">
             
-            <!-- Left: Current Track Info -->
-            <div class="flex items-center gap-4 w-full md:w-1/3 min-w-0">
-                <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-primary/20 to-blue-600/20 border border-primary/30 flex-none flex items-center justify-center shadow-inner shadow-blue-500/10">
-                    <span id="playing-icon" class="material-symbols-outlined text-2xl text-primary">music_note</span>
+            <!-- Left: Current Track Info (Row 1 on Mobile, Left-side on PC) -->
+            <div class="flex items-center gap-3 w-full md:w-1/3 min-w-0">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/10 to-blue-600/10 border border-primary/20 flex-none flex items-center justify-center shadow-inner shadow-blue-500/5 text-primary relative overflow-hidden group">
+                    <div id="playing-glow" class="absolute inset-0 bg-primary/20 blur-xl opacity-0 transition-opacity duration-1000"></div>
+                    <span id="playing-icon" class="material-symbols-outlined text-xl relative">music_note</span>
                 </div>
                 <div class="flex flex-col overflow-hidden">
-                     <h2 id="current-track-name" class="text-sm font-display font-semibold truncate text-white">未选择文件</h2>
+                     <h2 id="current-track-name" class="text-xs sm:text-base font-display font-bold truncate text-white tracking-tight">未选择文件</h2>
+                     <div class="flex items-center gap-1.5 mt-0.5">
+                         <span class="w-1 h-1 rounded-full bg-primary/60 animate-pulse"></span>
+                         <span class="text-[9px] text-text-secondary uppercase tracking-widest font-bold">正在播放</span>
+                     </div>
                 </div>
             </div>
 
-            <!-- Center: Playback Controls -->
-            <div class="flex items-center justify-center gap-4 md:gap-6 flex-none">
-                 <!-- Loop Mode -->
-                <button id="btn-loop" title="Loop Mode" onclick="toggleLoopMode()" class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-all text-text-secondary hover:text-white">
-                    <span class="material-symbols-outlined text-xl" id="icon-loop">repeat</span>
+            <!-- Controls (Center on PC, Row 2 on Mobile) -->
+            <div class="flex items-center justify-center gap-4 sm:gap-7 w-full md:w-1/3">
+                <button id="btn-loop" onclick="toggleLoopMode()" class="btn-premium material-symbols-outlined text-xl transition-colors text-text-secondary hover:text-white active:scale-90" title="循环模式">
+                    <span id="icon-loop">repeat</span>
                 </button>
-            
-                <button id="btn-prev" onclick="playPrev()" class="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center transition-all text-white hover:scale-110 active:scale-95">
-                    <span class="material-symbols-outlined text-3xl">skip_previous</span>
+                <button onclick="playPrev()" class="btn-premium material-symbols-outlined text-2xl transition-colors text-text-secondary hover:text-white active:scale-90">skip_previous</button>
+                <button onclick="togglePlay()" class="btn-premium w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary hover:bg-blue-400 flex items-center justify-center text-white shadow-xl shadow-primary/25 transition-all active:scale-90 ring-4 ring-white/5">
+                    <span id="icon-play" class="material-symbols-outlined text-3xl sm:text-4xl">play_arrow</span>
                 </button>
-                
-                <button id="btn-play" onclick="togglePlay()" class="w-12 h-12 rounded-full bg-primary hover:bg-blue-400 flex items-center justify-center transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-105 active:scale-95 text-white">
-                    <span class="material-symbols-outlined text-3xl fill-1" id="icon-play">play_arrow</span>
-                </button>
-                
-                <button id="btn-next" onclick="playNext()" class="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center transition-all text-white hover:scale-110 active:scale-95">
-                    <span class="material-symbols-outlined text-3xl">skip_next</span>
-                </button>
-                
-                <!-- Spacer for visual balance if needed -->
-                <div class="w-8"></div> 
+                <button onclick="playNext()" class="btn-premium material-symbols-outlined text-2xl transition-colors text-text-secondary hover:text-white active:scale-90">skip_next</button>
             </div>
 
-            <!-- Right: Volume -->
-            <div class="flex items-center gap-3 w-full md:w-1/3 justify-end">
-                <button class="text-text-secondary hover:text-white transition-colors">
-                    <span class="material-symbols-outlined text-xl">volume_up</span>
-                </button>
-                <input type="range" min="0" max="100" value="100" class="range-slider w-24 md:w-32" id="volume-slider" oninput="updateVolume(this.value)">
-                <span class="text-xs font-mono text-text-secondary w-8 text-right" id="volume-label">100%</span>
+            <!-- Volume (Right on PC, Row 3 on Mobile) -->
+            <div class="flex items-center gap-3 w-full md:w-1/3 justify-center md:justify-end">
+                <span class="material-symbols-outlined text-xl text-text-secondary">volume_up</span>
+                <div class="relative flex-1 md:flex-none md:w-32 lg:w-40 h-1.5 bg-white/5 rounded-full overflow-hidden group">
+                    <input type="range" class="range-slider absolute inset-0 opacity-100 cursor-pointer z-10" min="0" max="100" value="100" id="volume-slider" oninput="updateVolume(this.value)">
+                </div>
+                <span id="volume-label" class="text-xs font-mono font-bold text-text-secondary w-10 text-right">100%</span>
             </div>
-
         </div>
     </footer>
 
@@ -309,7 +328,7 @@
 
             fileList.forEach(file => {
                 const div = document.createElement('div');
-                div.className = `grid grid-cols-12 gap-4 px-4 py-0.5 rounded-[4px] cursor-pointer transition-all file-row group ${currentFile === file.name ? 'active' : ''}`;
+                div.className = `grid grid-cols-12 gap-4 px-4 py-1 rounded-[6px] cursor-pointer transition-all file-row group ${currentFile === file.name ? 'active' : ''}`;
                 div.ondblclick = () => playFile(file.name);
 
                 // Date Format
@@ -358,6 +377,8 @@
                         updatePlayButton();
                         nameEl.textContent = "未选择文件";
                         playingIcon.classList.remove('animate-spin-slow');
+                        const glow = document.getElementById('playing-glow');
+                        if(glow) glow.classList.remove('opacity-100');
                     }
                 }
             }
@@ -371,6 +392,9 @@
             renderList(); // Update active highlight
             nameEl.textContent = filename;
             playingIcon.classList.add('animate-spin-slow');
+            
+            const glow = document.getElementById('playing-glow');
+            if(glow) glow.classList.add('opacity-100');
             
             ws.send(JSON.stringify({ type: 'play', file: filename }));
         }
@@ -387,11 +411,15 @@
                 ws.send(JSON.stringify({ type: 'pause' }));
                 isPaused = true;
                 playingIcon.classList.remove('animate-spin-slow');
+                const glow = document.getElementById('playing-glow');
+                if(glow) glow.classList.remove('opacity-100');
             } else if (isPlaying && isPaused) {
                 // Resume
                 ws.send(JSON.stringify({ type: 'resume' }));
                 isPaused = false;
                 playingIcon.classList.add('animate-spin-slow');
+                const glow = document.getElementById('playing-glow');
+                if(glow) glow.classList.add('opacity-100');
             } else {
                 // Was stopped, replay current?
                 playFile(currentFile);
@@ -531,6 +559,9 @@
                 const buffer = e.target.result;
                  const base64String = arrayBufferToBase64(buffer);
 
+                const progress = Math.min(100, Math.round((offset / fileSize) * 100));
+                if(status) status.textContent = `正在上传 ${progress}%...`;
+
                 ws.send(JSON.stringify({
                     type: 'upload_chunk',
                     filename: filename,
@@ -546,6 +577,12 @@
                         filename: filename
                     }));
                     input.value = ''; 
+                    setTimeout(() => {
+                        if(status) {
+                            status.classList.add('hidden');
+                            status.textContent = '正在上传...';
+                        }
+                    }, 2000);
                 }
             };
 
