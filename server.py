@@ -5,6 +5,7 @@ import websockets
 import numpy as np
 import sounddevice as sd
 from pydub import AudioSegment
+from pydub.utils import mediainfo
 import os
 import queue
 import threading
@@ -32,6 +33,12 @@ file_lock = threading.Lock()
 test_tone_active = False # Set to True for debugging audio output
 test_tone_frames = 0
 active_uploads = {} # Store {filename: [chunks]}
+
+# Playback State
+VOLUME = 1.0
+PAUSED = False
+connected_clients = set()
+event_queue = queue.Queue()
 
 # Debug counters
 callback_count = 0
@@ -108,7 +115,7 @@ def audio_callback(outdata, frames, time, status):
 
     # 2. Add file playback data
     with file_lock:
-        if file_samples is not None:
+        if file_samples is not None and not PAUSED:
             remaining = len(file_samples) - file_index
             if remaining > 0:
                 chunk_size = min(remaining, frames)
@@ -119,13 +126,17 @@ def audio_callback(outdata, frames, time, status):
             else:
                 file_samples = None
                 file_index = 0
+                event_queue.put({"type": "ended"})
     
+    # Apply Volume
+    combined_data *= VOLUME
+
     # Clip and output
     outdata[:] = np.clip(combined_data, -1.0, 1.0)
 
 async def play_audio_file(file_path):
     """Load an audio file into the global mixer."""
-    global file_samples, file_index
+    global file_samples, file_index, PAUSED
     try:
         if not os.path.exists(file_path):
             logger.error(f"File not found: {file_path}")
@@ -142,6 +153,7 @@ async def play_audio_file(file_path):
         with file_lock:
             file_samples = samples
             file_index = 0
+            PAUSED = False
             
         logger.info(f"Playback triggered: {len(samples)} samples @ {SAMPLE_RATE}Hz")
     except Exception as e:
@@ -149,7 +161,7 @@ async def play_audio_file(file_path):
 
 async def play_pcm_file(file_path):
     """Load a raw PCM s16le mono file (48k) into the global mixer."""
-    global file_samples, file_index
+    global file_samples, file_index, PAUSED
     try:
         if not os.path.exists(file_path):
             logger.error(f"File not found: {file_path}")
@@ -166,15 +178,17 @@ async def play_pcm_file(file_path):
         with file_lock:
             file_samples = samples
             file_index = 0
+            PAUSED = False
             
         logger.info(f"PCM Playback triggered: {len(samples)} samples @ {SAMPLE_RATE}Hz")
     except Exception as e:
         logger.exception(f"Error loading PCM file: {e}")
 
 async def handle_client(websocket):
+    global VOLUME, PAUSED
     logger.info(f"Handshake started with: {websocket.remote_address}")
     # websocket.remote_address is available after handshake
-    
+    connected_clients.add(websocket)
     try:
         async for message in websocket:
             if isinstance(message, str):
@@ -196,12 +210,39 @@ async def handle_client(websocket):
                         with file_lock:
                             global file_samples
                             file_samples = None
+                            PAUSED = False
                         while not mixer_queue.empty():
                             mixer_queue.get()
                         logger.info("Playback stopped")
                     elif cmd == "list":
-                        files = [f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))]
-                        await websocket.send(json.dumps({"type": "list", "files": files}))
+                        files_data = []
+                        valid_files = [f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))]
+                        for f in valid_files:
+                            path = os.path.join(MEDIA_DIR, f)
+                            stat = os.stat(path)
+                            size = stat.st_size
+                            mtime = stat.st_mtime
+                            duration = 0.0
+                            if f.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
+                                try:
+                                    info = mediainfo(path)
+                                    duration = float(info.get('duration', 0.0))
+                                except:
+                                    pass
+                            files_data.append({
+                                "name": f,
+                                "size": size,
+                                "mtime": mtime,
+                                "duration": duration
+                            })
+                        await websocket.send(json.dumps({"type": "list", "files": files_data}))
+                    elif cmd == "set_volume":
+                        vol = float(data.get("volume", 1.0))
+                        VOLUME = max(0.0, min(1.0, vol))
+                    elif cmd == "pause":
+                        PAUSED = True
+                    elif cmd == "resume":
+                        PAUSED = False
                     elif cmd == "delete":
                         filename = data.get("file")
                         file_path = os.path.join(MEDIA_DIR, filename)
@@ -245,6 +286,31 @@ async def handle_client(websocket):
 
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Client disconnected: {websocket.remote_address}")
+    finally:
+        connected_clients.remove(websocket)
+
+async def broadcast_events():
+    while True:
+        try:
+            # Non-blocking get from queue
+            event = event_queue.get_nowait()
+            if connected_clients:
+                message = json.dumps(event)
+                to_remove = set()
+                for ws in connected_clients:
+                    try:
+                        await ws.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        to_remove.add(ws)
+                    except Exception as e:
+                        logger.error(f"Error broadcasting to client: {e}")
+                
+                connected_clients.difference_update(to_remove)
+        except queue.Empty:
+            await asyncio.sleep(0.1)
+        except Exception as e:
+            logger.error(f"Error in broadcast loop: {e}")
+            await asyncio.sleep(0.1)
 
 async def main():
     if not os.path.exists(MEDIA_DIR):
@@ -284,8 +350,8 @@ async def main():
 
         socketserver.TCPServer.allow_reuse_address = True
         try:
-            with socketserver.TCPServer(("", 80), Handler) as httpd:
-                logger.info(f"Serving HTTP on port 80 (dir: {public_dir})")
+            with socketserver.TCPServer(("", 8089), Handler) as httpd:
+                logger.info(f"Serving HTTP on port 8089 (dir: {public_dir})")
                 httpd.serve_forever()
         except Exception as e:
             logger.error(f"HTTP Server error: {e}")
@@ -306,6 +372,10 @@ async def main():
     logger.info(f"Global audio stream started on device {target_device}")
 
     logger.info(f"Starting WebSocket server on ws://0.0.0.0:{PORT}")
+    
+    # Start broadcast loop
+    asyncio.create_task(broadcast_events())
+    
     try:
         async with websockets.serve(handle_client, "0.0.0.0", PORT):
             logger.info("WebSocket server is running and waiting for connections")

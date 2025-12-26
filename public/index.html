@@ -1,341 +1,583 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="Recorder.js"></script>
-    <title>Embedded Audio Intercom</title>
-    <style>
-        :root {
-            --primary: #4f46e5;
-            --primary-hover: #4338ca;
-            --bg: #0f172a;
-            --card-bg: #1e293b;
-            --text: #f8fafc;
-        }
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            background: var(--card-bg);
-            padding: 2rem;
-            border-radius: 1.5rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-        }
-        h1 { font-size: 1.5rem; margin-bottom: 1.5rem; font-weight: 700; }
-        .status {
-            font-size: 0.875rem;
-            margin-bottom: 1rem;
-            padding: 0.5rem;
-            border-radius: 0.5rem;
-            background: rgba(255, 255, 255, 0.05);
-        }
-        .status.connected { color: #10b981; }
-        .status.disconnected { color: #f43f5e; }
-
-        .btn {
-            width: 100%;
-            padding: 1rem;
-            border-radius: 1rem;
-            border: none;
-            font-size: 1.125rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-        }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:hover { background: var(--primary-hover); }
-        .btn-danger { background: #f43f5e; color: white; }
-        .btn-talk {
-            height: 120px;
-            width: 120px;
-            border-radius: 50%;
-            margin: 2rem auto;
-            position: relative;
-            user-select: none;
-        }
-        .btn-talk.active {
-            background: #ef4444;
-            box-shadow: 0 0 30px rgba(239, 68, 68, 0.5);
-            transform: scale(1.05);
-        }
-        .btn-talk span { pointer-events: none; }
-        
-        .file-list {
-            margin-top: 2rem;
-            text-align: left;
-        }
-        .file-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 0.75rem;
-            margin-bottom: 0.5rem;
-        }
-        .file-item button {
-            background: var(--primary);
-            border: none;
-            color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 0.4rem;
-            cursor: pointer;
-        }
-        .file-item .actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-        .btn-sm-danger {
-            background: #f43f5e !important;
-        }
-        .btn-sm-stop {
-            background: #64748b !important;
-        }
-        .upload-section {
-            margin-top: 2rem;
-            padding: 1.5rem;
-            border: 2px dashed #475569;
-            border-radius: 1rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .upload-section:hover {
-            border-color: var(--primary);
-            background: rgba(79, 70, 229, 0.05);
-        }
-        .upload-section input { display: none; }
-    </style>
-</head>
-<body>
-
-    <div class="container">
-        <h1>音频播放器 & 对讲</h1>
-        
-        <div id="status" class="status disconnected">Disconnected</div>
-
-        <button id="talkBtn" class="btn btn-primary btn-talk">
-            <span>开始<br>对讲</span>
-        </button>
-
-        <div class="upload-section" onclick="document.getElementById('fileInput').click()">
-            <p style="margin: 0; color: #94a3b8;">点击上传音频</p>
-            <input type="file" id="fileInput" accept="audio/*" onchange="uploadFile(this)">
-        </div>
-
-        <div class="file-list">
-            <h3>音频列表</h3>
-            <div id="filesContainer">
-                <p style="opacity: 0.5">刷新列表...</p>
-            </div>
-            <button class="btn" style="background: transparent; color: #94a3b8; border: 1px solid #334155; margin-top: 1rem;" onclick="refreshFiles()">刷新列表</button>
-            <button class="btn btn-danger" onclick="stopAll()">停止所有播放</button>
-        </div>
-    </div>
-
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>远程播放器</title>
+    <link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <!-- Use Tailwind via CDN for simplicity as in code.html -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script>
-        let ws;
-        let recorder;
-        let isTalking = false;
-
-        const statusEl = document.getElementById('status');
-        const talkBtn = document.getElementById('talkBtn');
-        const filesContainer = document.getElementById('filesContainer');
-
-        async function startRecord() {
-            if (!recorder) {
-                recorder = new Recorder({
-                    // 以下是默认配置
-                    sampleBits: 16,
-                    sampleRate:  48000, // 浏览器默认的输入采样率,
-                    numChannels: 1,
-                });
-
-                recorder.onPCM = function(ldata,rdata) {
-                    if (isTalking) {
-                        // Monitor data flow
-                        if (Math.random() < 0.05) { // Log 5% of packets to avoid spam
-                             console.log("on pcm: l=", ldata?.length, " r=", rdata?.length);
-                        }
-                        ws.send(ldata?.buffer);
+        tailwind.config = {
+            darkMode: "class", 
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#359EFF", 
+                        "background-light": "#f5f7f8", 
+                        "background-dark": "#0f1923", 
+                        "surface-dark": "#1b2327", 
+                        "border-dark": "#283339", 
+                        "text-secondary": "#9cb0ba"
+                    }, 
+                    fontFamily: {
+                        display: "Spline Sans", 
+                        body: ["Noto Sans", "sans-serif"]
+                    }, 
+                    borderRadius: {
+                        DEFAULT: "0.5rem", 
+                        lg: "1rem", 
+                        xl: "1.5rem", 
+                        full: "9999px"
                     }
                 }
             }
-            recorder.start().then(function() {
-                console.log('开始录音, 实际采样率:', recorder.context ? recorder.context.sampleRate : 'unknown');
-            });
-            // 开始绘制canvas
-            //drawRecord();
+        };
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
         }
-        function endRecord (e) {
-            recorder && recorder.stop();
-            recorder.destroy().then(function() {
-                console.log('销毁实例');
-                recorder = null;
-            });
-            console.log('结束录音');
+        ::-webkit-scrollbar-track {
+            background: #111618; 
         }
-        function connect() {
-            const host = window.location.hostname || 'localhost';
-            ws = new WebSocket(`ws://${host}:8888`);
+        ::-webkit-scrollbar-thumb {
+            background: #283339; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3b4c54; 
+        }
+        .range-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: #283339;
+            border-radius: 2px;
+            outline: none;
+        }
+        .range-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            box-shadow: 0 0 0 2px #1b2327;
+        }
+        .range-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: #359EFF;
+        }
+        .file-row {
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.4s ease, border-color 0.4s ease;
+            border: 1px solid transparent;
+            will-change: transform;
+        }
+        .file-row:hover {
+            background-color: rgba(53, 158, 255, 0.08);
+            border-color: rgba(53, 158, 255, 0.2);
+            transform: translateX(2px);
+            box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+        .file-row.active {
+            background-color: rgba(255, 255, 255, 0.08);
+            color: white;
+        }
+        .file-row.active .material-symbols-outlined:first-child {
+            color: #359EFF;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+            animation: spin 3s linear infinite;
+        }
+    </style>
+    <script src="Recorder.js"></script> 
+</head>
+<body class="bg-[#0b1219] text-white font-body h-screen flex justify-center items-center p-0 md:p-10 antialiased selection:bg-primary selection:text-white">
+
+    <div class="w-full max-w-6xl h-full md:h-[90vh] flex flex-col bg-background-dark shadow-2xl md:rounded-[10px] relative overflow-hidden">
+
+
+    <!-- Header (Fixed Top) -->
+    <header class="flex-none flex flex-col sm:flex-row items-center justify-between gap-4 px-4 sm:px-6 py-4 bg-[#1e293b]/30 backdrop-blur-md z-20">
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center shadow-lg shadow-blue-900/20 flex-none">
+                <span class="material-symbols-outlined text-white text-lg sm:text-xl">music_note</span>
+            </div>
+            <h1 class="text-xl sm:text-2xl font-display font-bold tracking-tight text-white whitespace-nowrap">远程播放器</h1>
+            <span id="connection-status" class="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-text-secondary font-medium uppercase tracking-wider flex-none">连接中...</span>
+        </div>
+        <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
+            <!-- Upload Button -->
+            <button onclick="document.getElementById('file-upload').click()" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-dark border border-border-dark hover:bg-white/5 transition-colors text-sm font-medium text-text-secondary hover:text-white">
+                <span class="material-symbols-outlined text-lg">library_music</span>
+                <span>上传</span>
+            </button>
+            <input type="file" id="file-upload" class="hidden" accept=".mp3,.wav,.ogg,.flac,.pcm" onchange="handleFileUpload(this)">
+
+            <!-- Intercom Button -->
+            <button id="btn-intercom" onmousedown="startIntercom()" onmouseup="stopIntercom()" onmouseleave="stopIntercom()" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 transition-colors text-sm font-medium text-white shadow-lg shadow-indigo-900/20 active:scale-95 select-none">
+                <span class="material-symbols-outlined text-lg">mic</span>
+                <span>按下对讲</span>
+            </button>
+
+            <button class="w-10 h-10 rounded-full hover:bg-surface-dark flex items-center justify-center transition-colors text-text-secondary hover:text-white">
+                <span class="material-symbols-outlined">settings</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content (Scrollable List) -->
+    <main class="flex-1 min-h-0 flex flex-col w-full p-2 sm:p-4 md:p-6 pb-2">
+        
+        <!-- List Container -->
+        <div class="flex-1 bg-surface-dark/40 rounded-sm flex flex-col overflow-hidden relative">
+            <!-- Toolbar -->
+            <div class="flex-none p-4 flex items-center justify-between gap-4 bg-white/[0.02]">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-text-secondary uppercase tracking-wider px-2">媒体库</span>
+                    <span id="file-count" class="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                    <span id="upload-status" class="text-xs text-primary hidden ml-2">正在上传...</span>
+                </div>
+                <!-- Sort Controls -->
+                <div class="flex items-center gap-2 bg-black/20 rounded-lg p-1">
+                    <button id="sort-date" onclick="setSort('date')" class="px-3 py-1.5 rounded-md text-xs font-medium transition-all text-text-secondary hover:text-white hover:bg-white/5">日期</button>
+                    <div class="w-px h-4 bg-border-dark"></div>
+                    <button id="sort-name" onclick="setSort('name')" class="px-3 py-1.5 rounded-md text-xs font-medium transition-all text-text-secondary hover:text-white hover:bg-white/5">名称</button>
+                </div>
+            </div>
+
+            <!-- List Header -->
+            <div class="flex-none grid grid-cols-12 gap-4 px-4 sm:px-6 py-3 text-xs font-medium text-text-secondary uppercase tracking-wider bg-white/[0.01] z-10">
+                <div class="col-span-8 sm:col-span-5">文件名</div>
+                <div class="hidden sm:block col-span-3 text-right">日期</div>
+                <div class="col-span-2 sm:col-span-2 text-right">时长</div>
+                <div class="hidden sm:block col-span-1 text-right">大小</div>
+                <div class="col-span-2 sm:col-span-1 text-right">操作</div>
+            </div>
+
+            <!-- Scrollable List -->
+            <div class="flex-1 overflow-y-auto p-1 space-y-0 scroll-smooth" id="file-list">
+                <!-- Dynamic Items -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom Player Bar (Fixed Footer) -->
+    <footer class="flex-none bg-[#1e293b]/40 backdrop-blur-lg p-4 md:px-8 md:py-5 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] z-30">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-8">
             
+            <!-- Left: Current Track Info -->
+            <div class="flex items-center gap-4 w-full md:w-1/3 min-w-0">
+                <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-primary/20 to-blue-600/20 border border-primary/30 flex-none flex items-center justify-center shadow-inner shadow-blue-500/10">
+                    <span id="playing-icon" class="material-symbols-outlined text-2xl text-primary">music_note</span>
+                </div>
+                <div class="flex flex-col overflow-hidden">
+                     <h2 id="current-track-name" class="text-sm font-display font-semibold truncate text-white">未选择文件</h2>
+                </div>
+            </div>
+
+            <!-- Center: Playback Controls -->
+            <div class="flex items-center justify-center gap-4 md:gap-6 flex-none">
+                 <!-- Loop Mode -->
+                <button id="btn-loop" title="Loop Mode" onclick="toggleLoopMode()" class="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-all text-text-secondary hover:text-white">
+                    <span class="material-symbols-outlined text-xl" id="icon-loop">repeat</span>
+                </button>
+            
+                <button id="btn-prev" onclick="playPrev()" class="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center transition-all text-white hover:scale-110 active:scale-95">
+                    <span class="material-symbols-outlined text-3xl">skip_previous</span>
+                </button>
+                
+                <button id="btn-play" onclick="togglePlay()" class="w-12 h-12 rounded-full bg-primary hover:bg-blue-400 flex items-center justify-center transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-105 active:scale-95 text-white">
+                    <span class="material-symbols-outlined text-3xl fill-1" id="icon-play">play_arrow</span>
+                </button>
+                
+                <button id="btn-next" onclick="playNext()" class="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center transition-all text-white hover:scale-110 active:scale-95">
+                    <span class="material-symbols-outlined text-3xl">skip_next</span>
+                </button>
+                
+                <!-- Spacer for visual balance if needed -->
+                <div class="w-8"></div> 
+            </div>
+
+            <!-- Right: Volume -->
+            <div class="flex items-center gap-3 w-full md:w-1/3 justify-end">
+                <button class="text-text-secondary hover:text-white transition-colors">
+                    <span class="material-symbols-outlined text-xl">volume_up</span>
+                </button>
+                <input type="range" min="0" max="100" value="100" class="range-slider w-24 md:w-32" id="volume-slider" oninput="updateVolume(this.value)">
+                <span class="text-xs font-mono text-text-secondary w-8 text-right" id="volume-label">100%</span>
+            </div>
+
+        </div>
+    </footer>
+
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // --- State ---
+        let ws;
+        let fileList = [];
+        let currentFile = null;
+        let isPlaying = false;
+        let isPaused = false;
+        let loopMode = 'list'; // 'list' or 'single'
+        let currentSort = 'date'; // 'date' or 'name'
+
+        const nameEl = document.getElementById('current-track-name');
+        const statusEl = document.getElementById('connection-status');
+        const playingIcon = document.getElementById('playing-icon');
+        
+        // Intercom
+        let recorder = null;
+        let isRecording = false;
+
+        // --- WebSocket ---
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.hostname}:8888`;
+            
+            ws = new WebSocket(wsUrl);
+
             ws.onopen = () => {
-                statusEl.textContent = '已连接';
-                statusEl.className = 'status connected';
-                refreshFiles();
+                console.log('Connected');
+                statusEl.textContent = "已连接";
+                statusEl.classList.remove('text-text-secondary', 'border-border-dark');
+                statusEl.classList.add('text-green-500', 'border-green-500/30');
+                ws.send(JSON.stringify({type: 'list'}));
             };
 
             ws.onclose = () => {
-                statusEl.textContent = '已断开';
-                statusEl.className = 'status disconnected';
-                setTimeout(connect, 2000);
+                statusEl.textContent = "未连接";
+                statusEl.classList.remove('text-green-500', 'border-green-500/30');
+                statusEl.classList.add('text-red-500', 'border-red-500/30');
+                setTimeout(connect, 3000);
             };
 
             ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.type === 'list') {
-                    renderFileList(data.files);
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'list') {
+                        fileList = data.files;
+                        renderList();
+                        const upStatus = document.getElementById('upload-status');
+                        if(upStatus) upStatus.classList.add('hidden');
+                    } else if (data.type === 'ended') {
+                        console.log('Playback ended event received');
+                        handleFileEnded();
+                    }
+                } catch (e) {
+                    console.error("JSON Error", e);
                 }
             };
         }
 
-        async function startIntercom() {
-            if (!recorder) {
-                await startRecord();
-            }
+        // --- Logic ---
 
-            if(isTalking) {
-                stopIntercom();
-            }
-            else{
-                isTalking = true;
-                talkBtn.classList.add('active');
-                talkBtn.querySelector('span').innerHTML = '对讲中...';
-            }
-
-        }
-
-        function stopIntercom() {
-            isTalking = false;
-            talkBtn.classList.remove('active');
-            talkBtn.querySelector('span').innerHTML = '开始<br>对讲';
+        function renderList() {
+            const listEl = document.getElementById('file-list');
+            const countEl = document.getElementById('file-count');
+            listEl.innerHTML = '';
             
-            if (recorder) {
-                endRecord();
-            }
+            // Sort
+            fileList.sort((a, b) => {
+                if (currentSort === 'date') {
+                    return b.mtime - a.mtime; // Newest first
+                } else {
+                    return a.name.localeCompare(b.name);
+                }
+            });
 
+            countEl.textContent = fileList.length;
+            
+            // Update Sort Buttons Style
+            document.getElementById('sort-date').classList.toggle('bg-white/10', currentSort === 'date');
+            document.getElementById('sort-date').classList.toggle('text-white', currentSort === 'date');
+            document.getElementById('sort-name').classList.toggle('bg-white/10', currentSort === 'name');
+            document.getElementById('sort-name').classList.toggle('text-white', currentSort === 'name');
+
+            fileList.forEach(file => {
+                const div = document.createElement('div');
+                div.className = `grid grid-cols-12 gap-4 px-4 py-0.5 rounded-[4px] cursor-pointer transition-all file-row group ${currentFile === file.name ? 'active' : ''}`;
+                div.ondblclick = () => playFile(file.name);
+
+                // Date Format
+                const date = new Date(file.mtime * 1000).toLocaleDateString();
+                
+                // Duration Format
+                const durMin = Math.floor(file.duration / 60);
+                const durSec = Math.floor(file.duration % 60).toString().padStart(2, '0');
+                const durStr = file.duration ? `${durMin}:${durSec}` : '--:--';
+
+                // Size Format
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+
+                div.innerHTML = `
+                    <div class="col-span-8 sm:col-span-5 flex items-center gap-3 overflow-hidden">
+                        <span class="material-symbols-outlined text-text-secondary group-hover:text-primary transition-colors text-lg flex-none">music_note</span>
+                        <span class="truncate text-sm font-medium text-gray-200 group-hover:text-white">${file.name}</span>
+                    </div>
+                    <div class="hidden sm:flex col-span-3 text-right text-xs text-text-secondary items-center justify-end">${date}</div>
+                    <div class="col-span-2 text-right text-xs font-mono text-text-secondary flex items-center justify-end">${durStr}</div>
+                    <div class="hidden sm:flex col-span-1 text-right text-xs font-mono text-text-secondary items-center justify-end">${sizeMB}M</div>
+                    <div class="col-span-2 sm:col-span-1 text-right flex items-center justify-end">
+                        <button onclick="deleteFile(event, '${file.name}')" class="p-1.5 rounded hover:bg-red-500/20 text-text-secondary hover:text-red-500 transition-colors">
+                            <span class="material-symbols-outlined text-lg">delete</span>
+                        </button>
+                    </div>
+                `;
+                listEl.appendChild(div);
+            });
         }
 
-        talkBtn.addEventListener('click', startIntercom);
-        //talkBtn.addEventListener('click', stopIntercom);
-        //talkBtn.addEventListener('mouseleave', stopIntercom);
-        
-        // Mobile touch support
-        talkBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startIntercom(); });
-        talkBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopIntercom(); });
+        function setSort(mode) {
+            currentSort = mode;
+            renderList();
+        }
+
+        function deleteFile(event, filename) {
+            event.stopPropagation();
+            if (confirm(`确定要永久删除音频文件 ${filename} 吗？`)) {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'delete', file: filename }));
+                    if (currentFile === filename) {
+                        currentFile = null;
+                        isPlaying = false;
+                        isPaused = false;
+                        updatePlayButton();
+                        nameEl.textContent = "未选择文件";
+                        playingIcon.classList.remove('animate-spin-slow');
+                    }
+                }
+            }
+        }
 
         function playFile(filename) {
+            currentFile = filename;
+            isPlaying = true;
+            isPaused = false;
+            updatePlayButton();
+            renderList(); // Update active highlight
+            nameEl.textContent = filename;
+            playingIcon.classList.add('animate-spin-slow');
+            
             ws.send(JSON.stringify({ type: 'play', file: filename }));
         }
 
-        function deleteFile(filename) {
-            if (confirm(`Are you sure you want to delete ${filename}?`)) {
-                ws.send(JSON.stringify({ type: 'delete', file: filename }));
+        function togglePlay() {
+            if (!currentFile && fileList.length > 0) {
+                playFile(fileList[0].name);
+                return;
+            }
+            if (!currentFile) return;
+
+            if (isPlaying && !isPaused) {
+                // Pause
+                ws.send(JSON.stringify({ type: 'pause' }));
+                isPaused = true;
+                playingIcon.classList.remove('animate-spin-slow');
+            } else if (isPlaying && isPaused) {
+                // Resume
+                ws.send(JSON.stringify({ type: 'resume' }));
+                isPaused = false;
+                playingIcon.classList.add('animate-spin-slow');
+            } else {
+                // Was stopped, replay current?
+                playFile(currentFile);
+            }
+            updatePlayButton();
+        }
+
+        function updatePlayButton() {
+            const icon = document.getElementById('icon-play');
+            if (isPlaying && !isPaused) {
+                icon.textContent = 'pause';
+            } else {
+                icon.textContent = 'play_arrow';
             }
         }
 
-        function uploadFile(input) {
+        function playNext() {
+            if (!currentFile || fileList.length === 0) return;
+            const idx = fileList.findIndex(f => f.name === currentFile);
+            let nextIdx = idx + 1;
+            if (nextIdx >= fileList.length) nextIdx = 0; // Wrap
+            playFile(fileList[nextIdx].name);
+        }
+
+        function playPrev() {
+            if (!currentFile || fileList.length === 0) return;
+            const idx = fileList.findIndex(f => f.name === currentFile);
+            let prevIdx = idx - 1;
+            if (prevIdx < 0) prevIdx = fileList.length - 1; // Wrap
+            playFile(fileList[prevIdx].name);
+        }
+
+        function toggleLoopMode() {
+            loopMode = loopMode === 'list' ? 'single' : 'list';
+            const icon = document.getElementById('icon-loop');
+            const btn = document.getElementById('btn-loop');
+            
+            if (loopMode === 'single') {
+                icon.textContent = 'repeat_one';
+                btn.classList.add('text-primary');
+            } else {
+                icon.textContent = 'repeat';
+                btn.classList.remove('text-primary');
+            }
+        }
+
+        function handleFileEnded() {
+            console.log('Handling file ended, loopMode:', loopMode);
+            if (loopMode === 'single') {
+                playFile(currentFile);
+            } else {
+                playNext();
+            }
+        }
+
+        function updateVolume(val) {
+            document.getElementById('volume-label').textContent = val + '%';
+            const floatVol = val / 100.0;
+            // Debounce could be added here if needed, but basic throttle via WS should be okay for local network
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'set_volume', volume: floatVol }));
+            }
+        }
+
+        // --- Intercom Logic ---
+
+        function startIntercom() {
+             if (isRecording) return;
+            isRecording = true;
+            
+            const btn = document.getElementById('btn-intercom');
+            btn.classList.add('bg-red-600', 'hover:bg-red-500');
+            btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500');
+            
+            if (ws.readyState === WebSocket.OPEN) {
+                // Stop playback if any
+                ws.send(JSON.stringify({ type: 'stop' }));
+                isPlaying = false;
+                isPaused = false;
+                updatePlayButton();
+                nameEl.textContent = "对讲中";
+                playingIcon.classList.remove('animate-spin-slow');
+            }
+
+            if (!recorder) {
+                recorder = new Recorder({
+                    sampleBits: 16,
+                    sampleRate: 48000,
+                    numChannels: 1
+                });
+                
+                recorder.onPCM = function(pcmData) {
+                    if (ws && ws.readyState === WebSocket.OPEN && isRecording) {
+                         ws.send(pcmData.buffer);
+                    }
+                };
+            }
+             recorder.start();
+        }
+
+        function stopIntercom() {
+            if (!isRecording) return;
+            isRecording = false;
+
+            const btn = document.getElementById('btn-intercom');
+            btn.classList.remove('bg-red-600', 'hover:bg-red-500');
+            btn.classList.add('bg-indigo-600', 'hover:bg-indigo-500');
+            
+            if (recorder) {
+                recorder.stop();
+            }
+             nameEl.textContent = "对讲结束";
+        }
+
+        // --- File Upload Logic ---
+
+        async function handleFileUpload(input) {
             const file = input.files[0];
             if (!file) return;
 
-            const CHUNK_SIZE = 256 * 1024; // 256KB chunks
-            const reader = new FileReader();
-            let offset = 0;
+            const CHUNK_SIZE = 1024 * 64; 
+            const filename = file.name;
+            const fileSize = file.size;
+
+            const status = document.getElementById('upload-status');
+            if(status) status.classList.remove('hidden');
 
             ws.send(JSON.stringify({
                 type: 'upload_start',
-                filename: file.name
+                filename: filename
             }));
 
+            let offset = 0;
+            const reader = new FileReader();
+
             reader.onload = function(e) {
-                const base64Data = e.target.result.split(',')[1];
+                const buffer = e.target.result;
+                 const base64String = arrayBufferToBase64(buffer);
+
                 ws.send(JSON.stringify({
                     type: 'upload_chunk',
-                    filename: file.name,
-                    data: base64Data
+                    filename: filename,
+                    data: base64String
                 }));
 
                 offset += CHUNK_SIZE;
-                if (offset < file.size) {
+                if (offset < fileSize) {
                     readNextChunk();
                 } else {
                     ws.send(JSON.stringify({
                         type: 'upload_end',
-                        filename: file.name
+                        filename: filename
                     }));
-                    input.value = ''; // Reset input
-                    console.log('Upload complete');
+                    input.value = ''; 
                 }
             };
 
             function readNextChunk() {
                 const slice = file.slice(offset, offset + CHUNK_SIZE);
-                reader.readAsDataURL(slice);
+                reader.readAsArrayBuffer(slice);
+            }
+
+            function arrayBufferToBase64(buffer) {
+                let binary = '';
+                const bytes = new Uint8Array(buffer);
+                const len = bytes.byteLength;
+                for (let i = 0; i < len; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return window.btoa(binary);
             }
 
             readNextChunk();
         }
 
-        function stopAll() {
-            ws.send(JSON.stringify({ type: 'stop' }));
-        }
-
-        function refreshFiles() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'list' }));
-            }
-        }
-
-        function renderFileList(files) {
-            filesContainer.innerHTML = '';
-            if (files.length === 0) {
-                filesContainer.innerHTML = '<p style="opacity: 0.5">No files in media/ directory</p>';
-                return;
-            }
-            files.forEach(file => {
-                const div = document.createElement('div');
-                div.className = 'file-item';
-                div.innerHTML = `
-                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px;">${file}</span>
-                    <div class="actions">
-                        <button onclick="playFile('${file}')">播放</button>
-                        <button class="btn-sm-stop" onclick="stopAll()">停止</button>
-                        <button class="btn-sm-danger" onclick="deleteFile('${file}')">删除</button>
-                    </div>
-                `;
-                filesContainer.appendChild(div);
-            });
-        }
-
+        // Initialize
         connect();
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlay();
+            }
+        });
+
     </script>
 </body>
 </html>
