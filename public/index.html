@@ -161,7 +161,7 @@
                 <input type="file" id="file-upload" class="hidden" accept=".mp3,.wav,.ogg,.flac,.pcm" onchange="handleFileUpload(this)">
 
                 <!-- Intercom Button -->
-                <button id="btn-intercom" onmousedown="startIntercom()" onmouseup="stopIntercom()" onmouseleave="stopIntercom()" class="btn-premium flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20 text-xs font-bold active:bg-indigo-700 select-none">
+                <button id="btn-intercom" onclick="startIntercom()" class="btn-premium flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20 text-xs font-bold active:bg-indigo-700 select-none">
                     <span class="material-symbols-outlined text-lg">mic</span>
                     <span class="whitespace-nowrap uppercase tracking-wider">对讲</span>
                 </button>
@@ -263,6 +263,7 @@
         let isPaused = false;
         let loopMode = 'list'; // 'list' or 'single'
         let currentSort = 'date'; // 'date' or 'name'
+        let isTalking = false;
 
         const nameEl = document.getElementById('current-track-name');
         const statusEl = document.getElementById('connection-status');
@@ -270,7 +271,6 @@
         
         // Intercom
         let recorder = null;
-        let isRecording = false;
 
         // --- WebSocket ---
         function connect() {
@@ -496,52 +496,75 @@
 
         // --- Intercom Logic ---
 
-        function startIntercom() {
-             if (isRecording) return;
-            isRecording = true;
-            
-            const btn = document.getElementById('btn-intercom');
-            btn.classList.add('bg-red-600', 'hover:bg-red-500');
-            btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500');
-            
-            if (ws.readyState === WebSocket.OPEN) {
-                // Stop playback if any
-                ws.send(JSON.stringify({ type: 'stop' }));
-                isPlaying = false;
-                isPaused = false;
-                updatePlayButton();
-                nameEl.textContent = "对讲中";
-                playingIcon.classList.remove('animate-spin-slow');
+        async function startIntercom() {
+            if (!recorder) {
+                await startRecord();
             }
 
-            if (!recorder) {
-                recorder = new Recorder({
-                    sampleBits: 16,
-                    sampleRate: 48000,
-                    numChannels: 1
-                });
-                
-                recorder.onPCM = function(pcmData) {
-                    if (ws && ws.readyState === WebSocket.OPEN && isRecording) {
-                         ws.send(pcmData.buffer);
-                    }
-                };
+            if(isTalking) {
+                stopIntercom();
             }
-             recorder.start();
+            else{
+                isTalking = true;
+                const btn = document.getElementById('btn-intercom');
+                btn.classList.add('bg-red-600', 'hover:bg-red-500');
+                btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500');
+                
+                if (ws.readyState === WebSocket.OPEN) {
+                    // Stop playback if any
+                    ws.send(JSON.stringify({ type: 'stop' }));
+                    isPlaying = false;
+                    isPaused = false;
+                    updatePlayButton();
+                    nameEl.textContent = "对讲中";
+                    playingIcon.classList.remove('animate-spin-slow');
+                }
+            }
         }
 
-        function stopIntercom() {
-            if (!isRecording) return;
-            isRecording = false;
+        async function startRecord() {
+            if (!recorder) {
+                recorder = new Recorder({
+                    // 以下是默认配置
+                    sampleBits: 16,
+                    sampleRate:  48000, // 浏览器默认的输入采样率,
+                    numChannels: 1,
+                });
 
+                recorder.onPCM = function(ldata,rdata) {
+                    if (isTalking) {
+                        // Monitor data flow
+                        if (Math.random() < 0.05) { // Log 5% of packets to avoid spam
+                             console.log("on pcm: l=", ldata?.length, " r=", rdata?.length);
+                        }
+                        ws.send(ldata?.buffer);
+                    }
+                }
+            }
+            recorder.start().then(function() {
+                console.log('开始录音, 实际采样率:', recorder.context ? recorder.context.sampleRate : 'unknown');
+            });
+            // 开始绘制canvas
+            //drawRecord();
+        }
+        function stopIntercom() {
+            isTalking = false;
             const btn = document.getElementById('btn-intercom');
             btn.classList.remove('bg-red-600', 'hover:bg-red-500');
             btn.classList.add('bg-indigo-600', 'hover:bg-indigo-500');
-            
+            nameEl.textContent = "对讲结束";
+
             if (recorder) {
-                recorder.stop();
+                endRecord();
             }
-             nameEl.textContent = "对讲结束";
+        }
+        function endRecord (e) {
+            recorder && recorder.stop();
+            recorder.destroy().then(function() {
+                console.log('销毁实例');
+                recorder = null;
+            });
+            console.log('结束对讲');
         }
 
         // --- File Upload Logic ---
