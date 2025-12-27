@@ -131,7 +131,7 @@
     </style>
     <script src="Recorder.js"></script> 
 </head>
-<body class="bg-[#0b1219] text-white font-body min-h-[100dvh] max-h-[100dvh] overflow-hidden flex justify-center items-center p-0 md:p-10 antialiased selection:bg-primary selection:text-white touch-manipulation">
+<body class="bg-[#2b2b3b] text-white font-body min-h-[100dvh] max-h-[100dvh] overflow-hidden flex justify-center items-center p-0 md:p-10 antialiased selection:bg-primary selection:text-white touch-manipulation">
 
     <div class="w-full md:w-[60%] h-full h-[100dvh] md:h-[90vh] flex flex-col bg-background-dark shadow-2xl md:rounded-[10px] relative overflow-hidden">
 
@@ -163,7 +163,7 @@
                 <!-- Intercom Button -->
                 <button id="btn-intercom" onclick="startIntercom()" class="btn-premium flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20 text-xs font-bold active:bg-indigo-700 select-none">
                     <span class="material-symbols-outlined text-lg">mic</span>
-                    <span class="whitespace-nowrap uppercase tracking-wider">对讲</span>
+                    <span id="btn-intercom-text" class="whitespace-nowrap uppercase tracking-wider">对讲</span>
                 </button>
             </div>
 
@@ -517,6 +517,7 @@
                     isPaused = false;
                     updatePlayButton();
                     nameEl.textContent = "对讲中";
+                    document.getElementById('btn-intercom-text').textContent = "对讲中..";
                     playingIcon.classList.remove('animate-spin-slow');
                 }
             }
@@ -553,6 +554,7 @@
             btn.classList.remove('bg-red-600', 'hover:bg-red-500');
             btn.classList.add('bg-indigo-600', 'hover:bg-indigo-500');
             nameEl.textContent = "对讲结束";
+            document.getElementById('btn-intercom-text').textContent = "对讲";
 
             if (recorder) {
                 endRecord();
