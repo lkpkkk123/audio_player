@@ -6,7 +6,7 @@
 <link href="fonts/splinesans.css" rel="stylesheet"/>
 <link href="fonts/notosans.css" rel="stylesheet"/>
 <link href="fonts/symbols.css" rel="stylesheet"/>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="tailwind.js"></script>
 <script>tailwind.config = {darkMode: "class", theme: {extend: {colors: {primary: "#359EFF", "background-light": "#f5f7f8", "background-dark": "#0f1923", "surface-dark": "#1b2327", "border-dark": "#283339", "text-secondary": "#9cb0ba"}, fontFamily: {display: "Spline Sans", body: ["Noto Sans", "sans-serif"]}, borderRadius: {DEFAULT: "0.5rem", lg: "1rem", xl: "1.5rem", full: "9999px"}}}};</script>
 <style>
         ::-webkit-scrollbar {
@@ -25,26 +25,37 @@
         }
         .range-slider {
             -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 32px;
+            background: transparent;
+            outline: none;
+            margin: 0;
+            padding: 0;
+        }
+        .range-slider::-webkit-slider-runnable-track {
             width: 100%;
             height: 4px;
             background: #283339;
             border-radius: 2px;
-            outline: none;
+            border: none;
         }
         .range-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 12px;
-            height: 12px;
+            width: 16px;
+            height: 16px;
             border-radius: 50%;
             background: #ffffff;
             cursor: pointer;
+            margin-top: -6px; /* (4/2) - (16/2) = -6px */
             transition: all 0.15s ease-in-out;
             box-shadow: 0 0 0 2px #1b2327;
+            border: none;
         }
         .range-slider::-webkit-slider-thumb:hover {
-            transform: scale(1.2);
-            background: #0da6f2;
+            transform: scale(1.15);
+            background: #359EFF;
         }
     </style>
 </head>
@@ -252,8 +263,8 @@
 <button class="text-text-secondary group-hover:text-white transition-colors" title="静音">
 <span class="material-symbols-outlined text-[20px]">volume_up</span>
 </button>
-<div class="w-24 h-6 flex items-center">
-<input class="range-slider h-1 bg-border-dark rounded-full appearance-none cursor-pointer" max="100" min="0" type="range" value="70"/>
+<div class="w-24 h-8 flex items-center">
+<input class="range-slider cursor-pointer" max="100" min="0" type="range" value="70"/>
 </div>
 </div>
 </div>
