@@ -19,6 +19,8 @@ logger = logging.getLogger("AudioServer")
 # Configuration
 PORT = 8888
 MEDIA_DIR = "media"
+METADATA_CACHE_FILE = os.path.join(MEDIA_DIR, "metadata.json")
+
 SAMPLE_RATE = 48000  # Many embedded/ALSA devices prefer 48k
 CHANNELS = 2         
 
@@ -33,6 +35,32 @@ file_lock = threading.Lock()
 test_tone_active = False # Set to True for debugging audio output
 test_tone_frames = 0
 active_uploads = {} # Store {filename: [chunks]}
+
+def load_metadata_cache():
+    if os.path.exists(METADATA_CACHE_FILE):
+        try:
+            with open(METADATA_CACHE_FILE, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading metadata cache: {e}")
+    return {}
+
+def save_metadata_cache(cache):
+    try:
+        # Ensure directory exists before saving
+        os.makedirs(os.path.dirname(METADATA_CACHE_FILE), exist_ok=True)
+        with open(METADATA_CACHE_FILE, 'w') as f:
+            json.dump(cache, f, indent=4)
+    except Exception as e:
+        logger.error(f"Error saving metadata cache: {e}")
+
+def get_file_duration_sync(path):
+    """Sync helper to get mediainfo duration."""
+    try:
+        info = mediainfo(path)
+        return float(info.get('duration', 0.0))
+    except Exception:
+        return 0.0
 
 # Playback State
 VOLUME = 1.0
@@ -186,29 +214,68 @@ async def play_pcm_file(file_path):
         logger.exception(f"Error loading PCM file: {e}")
 
 async def get_file_list():
-    """Helper to generate a list of file dictionaries with metadata."""
-    files_data = []
+    """Helper to generate a list of file dictionaries with metadata, using a cache for duration."""
     if not os.path.exists(MEDIA_DIR):
         return []
-    valid_files = sorted([f for f in os.listdir(MEDIA_DIR) if os.path.isfile(os.path.join(MEDIA_DIR, f))])
+    
+    cache = load_metadata_cache()
+    files_data = []
+    # Ignore the metadata file itself
+    valid_files = sorted([f for f in os.listdir(MEDIA_DIR) 
+                         if os.path.isfile(os.path.join(MEDIA_DIR, f)) and f != os.path.basename(METADATA_CACHE_FILE)])
+    
+    cache_updated = False
+    current_cache_keys = set()
+    
     for f in valid_files:
         path = os.path.join(MEDIA_DIR, f)
-        stat = os.stat(path)
-        size = stat.st_size
-        mtime = stat.st_mtime
+        try:
+            stat = os.stat(path)
+            size = stat.st_size
+            mtime = stat.st_mtime
+        except Exception:
+            continue
+            
+        # Use filename + size + mtime as key to detect changes
+        cache_key = f"{f}_{size}_{mtime}"
+        current_cache_keys.add(cache_key)
+        
         duration = 0.0
-        if f.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
-            try:
-                info = mediainfo(path)
-                duration = float(info.get('duration', 0.0))
-            except:
-                pass
+        if cache_key in cache:
+            duration = cache[cache_key].get("duration", 0.0)
+        else:
+            if f.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
+                logger.info(f"Cache miss for {f}, fetching mediainfo")
+                # Use to_thread if python 3.9+, else run_in_executor
+                try:
+                    duration = await asyncio.to_thread(get_file_duration_sync, path)
+                except AttributeError:
+                    duration = await asyncio.get_event_loop().run_in_executor(None, get_file_duration_sync, path)
+            
+            cache[cache_key] = {
+                "duration": duration,
+                "name": f,
+                "size": size,
+                "mtime": mtime
+            }
+            cache_updated = True
+            
         files_data.append({
             "name": f,
             "size": size,
             "mtime": mtime,
             "duration": duration
         })
+        
+    # Cleanup old entries from cache that are no longer present
+    original_cache_size = len(cache)
+    cache = {k: v for k, v in cache.items() if k in current_cache_keys}
+    if len(cache) != original_cache_size:
+        cache_updated = True
+        
+    if cache_updated:
+        save_metadata_cache(cache)
+        
     return files_data
 
 async def handle_client(websocket):
@@ -355,11 +422,10 @@ async def main():
         class Handler(http.server.SimpleHTTPRequestHandler):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, directory=public_dir, **kwargs)
-
-        socketserver.TCPServer.allow_reuse_address = True
+        socketserver.ThreadingTCPServer.allow_reuse_address = True
         try:
-            with socketserver.TCPServer(("", 8089), Handler) as httpd:
-                logger.info(f"Serving HTTP on port 8089 (dir: {public_dir})")
+            with socketserver.ThreadingTCPServer(("", 80), Handler) as httpd:
+                logger.info(f"Serving HTTP on port 80 (dir: {public_dir})")
                 httpd.serve_forever()
         except Exception as e:
             logger.error(f"HTTP Server error: {e}")
