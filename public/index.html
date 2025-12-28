@@ -282,7 +282,7 @@
             ws.onopen = () => {
                 console.log('Connected');
                 statusEl.textContent = "已连接";
-                statusEl.classList.remove('text-text-secondary', 'border-border-dark');
+                statusEl.classList.remove('text-text-secondary', 'border-border-dark', 'text-red-500', 'border-red-500/30');
                 statusEl.classList.add('text-green-500', 'border-green-500/30');
                 ws.send(JSON.stringify({type: 'list'}));
             };

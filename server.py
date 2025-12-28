@@ -222,7 +222,9 @@ async def get_file_list():
     files_data = []
     # Ignore the metadata file itself
     valid_files = sorted([f for f in os.listdir(MEDIA_DIR) 
-                         if os.path.isfile(os.path.join(MEDIA_DIR, f)) and f != os.path.basename(METADATA_CACHE_FILE)])
+                         if os.path.isfile(os.path.join(MEDIA_DIR, f)) 
+                         and f != os.path.basename(METADATA_CACHE_FILE)
+                         and not f.startswith('.')])
     
     cache_updated = False
     current_cache_keys = set()
@@ -278,6 +280,21 @@ async def get_file_list():
         
     return files_data
 
+def convert_to_hidden_wav(filename):
+    """Convert file to hidden 48000Hz WAV suitable for faster loading."""
+    try:
+        file_path = os.path.join(MEDIA_DIR, filename)
+        hidden_filename = f".{filename}.wav"
+        hidden_path = os.path.join(MEDIA_DIR, hidden_filename)
+        
+        logger.info(f"Starting background conversion for {filename}")
+        audio = AudioSegment.from_file(file_path)
+        audio = audio.set_frame_rate(SAMPLE_RATE).set_channels(1).set_sample_width(2)
+        audio.export(hidden_path, format="wav")
+        logger.info(f"Created hidden cache file: {hidden_path}")
+    except Exception as e:
+        logger.error(f"Error converting {filename}: {e}")
+
 async def handle_client(websocket):
     global VOLUME, PAUSED
     logger.info(f"Handshake started with: {websocket.remote_address}")
@@ -296,7 +313,14 @@ async def handle_client(websocket):
                         if filename.lower().endswith('.pcm'):
                             await play_pcm_file(os.path.join(MEDIA_DIR, filename))
                         else:
-                            await play_audio_file(os.path.join(MEDIA_DIR, filename))
+                            # Check for hidden cache file
+                            hidden_filename = f".{filename}.wav"
+                            hidden_path = os.path.join(MEDIA_DIR, hidden_filename)
+                            if os.path.exists(hidden_path):
+                                logger.info(f"Found cache file, playing: {hidden_path}")
+                                await play_audio_file(hidden_path)
+                            else:
+                                await play_audio_file(os.path.join(MEDIA_DIR, filename))
                     elif cmd == "play_pcm":
                         filename = data.get("file")
                         await play_pcm_file(os.path.join(MEDIA_DIR, filename))
@@ -323,6 +347,11 @@ async def handle_client(websocket):
                         file_path = os.path.join(MEDIA_DIR, filename)
                         if os.path.exists(file_path):
                             os.remove(file_path)
+                            # Also remove hidden cache if exists
+                            hidden_path = os.path.join(MEDIA_DIR, f".{filename}.wav")
+                            if os.path.exists(hidden_path):
+                                os.remove(hidden_path)
+                                logger.info(f"Deleted cache file: {hidden_path}")
                             logger.info(f"Deleted file: {filename}, broadcasting new list")
                             files_data = await get_file_list()
                             event_queue.put({"type": "list", "files": files_data})
@@ -346,6 +375,10 @@ async def handle_client(websocket):
                                 f.write(file_content)
                             del active_uploads[filename]
                             logger.info(f"Completed upload: {filename}, broadcasting new list")
+                            
+                            # Trigger background conversion
+                            threading.Thread(target=convert_to_hidden_wav, args=(filename,), daemon=True).start()
+                            
                             files_data = await get_file_list()
                             event_queue.put({"type": "list", "files": files_data})
                 
@@ -424,7 +457,7 @@ async def main():
                 super().__init__(*args, directory=public_dir, **kwargs)
         socketserver.ThreadingTCPServer.allow_reuse_address = True
         try:
-            with socketserver.ThreadingTCPServer(("", 80), Handler) as httpd:
+            with socketserver.ThreadingTCPServer(("", 8080), Handler) as httpd:
                 logger.info(f"Serving HTTP on port 80 (dir: {public_dir})")
                 httpd.serve_forever()
         except Exception as e:
