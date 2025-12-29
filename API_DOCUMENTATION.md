@@ -74,16 +74,70 @@
 
 ---
 
+### 1.6 播放原始PCM文件
+显式播放原始PCM文件（S16LE, 48k, 单声道）。
+```json
+{
+    "type": "play_pcm",
+    "file": "raw_audio.pcm"
+}
+```
+
+### 1.7 设置音量
+设置全局播放音量。
+```json
+{
+    "type": "set_volume",
+    "volume": 0.8  // 0.0 到 1.0 之间的浮点数
+}
+```
+
+### 1.8 暂停/恢复播放
+```json
+{
+    "type": "pause"
+}
+```
+或
+```json
+{
+    "type": "resume"
+}
+```
+
+---
+
 ## 2. 服务器响应 (服务器 -> 客户端)
 
 服务器会针对某些命令发送 JSON 字符串响应。
 
 ### 2.1 文件列表更新
-在响应 `list`、`delete` 或 `upload_end` 命令时发送。
+在响应 `list`、`delete` 或 `upload_end` 命令时发送。现在包含文件元数据。
 ```json
 {
     "type": "list",
-    "files": ["abc.mp3", "test.wav", "alarm.pcm"]
+    "files": [
+        {
+            "name": "abc.mp3",
+            "size": 3145728,
+            "mtime": 1703649600.0,
+            "duration": 120.5
+        },
+        {
+            "name": "alert.wav",
+            "size": 48000,
+            "mtime": 1703653200.0,
+            "duration": 1.5
+        }
+    ]
+}
+```
+
+### 2.2 播放结束事件
+当文件播放流结束时广播。
+```json
+{
+    "type": "ended"
 }
 ```
 
