@@ -359,6 +359,25 @@ async def handle_client(websocket):
                         filename = data.get("filename")
                         active_uploads[filename] = []
                         logger.info(f"Started chunked upload for: {filename}")
+
+                    elif cmd == "get_ip_settings":
+                        # Mock data for now
+                        mock_settings = {
+                            "type": "ip_settings",
+                            "ip": "192.168.1.100",
+                            "mask": "255.255.255.0",
+                            "gateway": "192.168.1.1"
+                        }
+                        await websocket.send(json.dumps(mock_settings))
+                    
+                    elif cmd == "set_ip_settings":
+                        new_settings = data.get("settings", {})
+                        logger.info(f"Received new IP settings: {new_settings}")
+                        # In the future, apply these settings to the system
+                        await websocket.send(json.dumps({
+                            "type": "toast",
+                            "message": "IP设置已保存 (模拟生效)"
+                        }))
                     
                     elif cmd == "upload_chunk":
                         filename = data.get("filename")

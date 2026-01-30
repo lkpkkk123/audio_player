@@ -167,7 +167,7 @@
                 </button>
             </div>
 
-            <button class="btn-premium w-10 h-10 rounded-xl hover:bg-surface-dark border border-transparent hover:border-white/5 flex items-center justify-center text-text-secondary hover:text-white flex-none">
+            <button onclick="openSettings()" class="btn-premium w-10 h-10 rounded-xl hover:bg-surface-dark border border-transparent hover:border-white/5 flex items-center justify-center text-text-secondary hover:text-white flex-none">
                 <span class="material-symbols-outlined text-xl">settings</span>
             </button>
         </div>
@@ -305,6 +305,12 @@
                     } else if (data.type === 'ended') {
                         console.log('Playback ended event received');
                         handleFileEnded();
+                    } else if (data.type === 'ip_settings') {
+                        document.getElementById('ip-address').value = data.ip || '';
+                        document.getElementById('subnet-mask').value = data.mask || '';
+                        document.getElementById('gateway').value = data.gateway || '';
+                    } else if (data.type === 'toast') {
+                        showToast(data.message);
                     }
                 } catch (e) {
                     console.error("JSON Error", e);
@@ -637,6 +643,65 @@
             }
 
             readNextChunk();
+            readNextChunk();
+        }
+
+        // --- Settings Modal Logic ---
+        function openSettings() {
+            const modal = document.getElementById('settings-modal');
+            const panel = document.getElementById('settings-panel');
+            modal.classList.remove('hidden');
+            // Animate in
+            setTimeout(() => {
+                panel.classList.remove('scale-95', 'opacity-0');
+                panel.classList.add('scale-100', 'opacity-100');
+            }, 10);
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'get_ip_settings' }));
+            }
+        }
+
+        function closeSettings() {
+            const modal = document.getElementById('settings-modal');
+            const panel = document.getElementById('settings-panel');
+            panel.classList.remove('scale-100', 'opacity-100');
+            panel.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        function saveSettings() {
+            const ip = document.getElementById('ip-address').value;
+            const mask = document.getElementById('subnet-mask').value;
+            const gateway = document.getElementById('gateway').value;
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ 
+                    type: 'set_ip_settings', 
+                    settings: { ip, mask, gateway } 
+                }));
+            }
+            closeSettings();
+        }
+
+        // --- Toast Logic ---
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur text-white px-4 py-2 rounded-lg text-sm font-medium shadow-xl z-50 transition-all duration-300 opacity-0 translate-y-4 border border-white/10';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', 'translate-y-4');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
         }
 
         // Initialize
@@ -651,5 +716,51 @@
         });
 
     </script>
+    
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onclick="closeSettings()"></div>
+
+        <!-- Panel -->
+        <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
+            <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+                <div id="settings-panel" class="relative transform overflow-hidden rounded-2xl bg-[#1b2327] border border-white/10 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-lg scale-95 opacity-0 duration-200 ease-out">
+                    <div class="px-6 py-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-display font-bold text-white flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">settings_ethernet</span>
+                                网络设置
+                            </h3>
+                            <button onclick="closeSettings()" class="text-text-secondary hover:text-white transition-colors">
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label for="ip-address" class="block text-xs font-medium text-text-secondary uppercase tracking-wider mb-1.5 pl-1">IP 地址</label>
+                                <input type="text" id="ip-address" class="block w-full rounded-lg bg-black/20 border-white/10 text-white placeholder-gray-500 focus:border-primary focus:ring-primary sm:text-sm px-4 py-2.5 transition-all" placeholder="例如: 192.168.1.100">
+                            </div>
+
+                            <div>
+                                <label for="subnet-mask" class="block text-xs font-medium text-text-secondary uppercase tracking-wider mb-1.5 pl-1">子网掩码</label>
+                                <input type="text" id="subnet-mask" class="block w-full rounded-lg bg-black/20 border-white/10 text-white placeholder-gray-500 focus:border-primary focus:ring-primary sm:text-sm px-4 py-2.5 transition-all" placeholder="例如: 255.255.255.0">
+                            </div>
+
+                            <div>
+                                <label for="gateway" class="block text-xs font-medium text-text-secondary uppercase tracking-wider mb-1.5 pl-1">网关</label>
+                                <input type="text" id="gateway" class="block w-full rounded-lg bg-black/20 border-white/10 text-white placeholder-gray-500 focus:border-primary focus:ring-primary sm:text-sm px-4 py-2.5 transition-all" placeholder="例如: 192.168.1.1">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-black/20 px-6 py-4 flex flex-row-reverse gap-3 border-t border-white/5">
+                        <button type="button" onclick="saveSettings()" class="btn-premium inline-flex w-full justify-center rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-400 sm:w-auto min-w-[80px]">保存</button>
+                        <button type="button" onclick="closeSettings()" class="btn-premium inline-flex w-full justify-center rounded-xl bg-surface-dark border border-white/5 px-3 py-2 text-sm font-semibold text-text-secondary hover:bg-white/5 hover:text-white sm:w-auto min-w-[80px]">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
